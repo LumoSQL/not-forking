@@ -1,16 +1,16 @@
 # Not-Forking Tool
 
 This directory contains the not-forking tool as developed for the 
-[LumoSQL project](http://lumosql.org). Not forking is like patching or merging,
+[LumoSQL project](http://lumosql.org). Not-forking is like patching or merging,
 but is more intelligent so that software can be mostly-automatically kept
 in synch with an upstream.
 
-Here you will find the tool and its libraries, and the [full documentation](doc/not-forking.md)
+Here you will find the tool and its libraries, and the [full documentation](doc/not-forking.md).
 It also contains an example configuration (in directory not-fork.d) which can
 be used for testing.
 
-LumoSQL has a more complicated use case, keeping track of multiple upstreams and 
-versions. 
+For more advanced uses, LumoSQL has a more complicated configuration which
+tracks multiple upstreams and versions. 
 
 To install the tool:
 
