@@ -1,6 +1,6 @@
 # Licenses
 
-This directory contains the legal text of the licenses applying to the not-forking project.
+This directory documents the legal text of the licenses applying to the not-forking project.
 
 All files in this project should in addition have a [Software Package Data Exchange](https://spdx.dev)
 machine-readable header. 
