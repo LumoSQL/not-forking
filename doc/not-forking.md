@@ -27,7 +27,9 @@ upstream changes.
 
 The mechanism is similar to applying patches; however patches need to be
 constantly updated as upstream sources changes, and the not-forking mechanism
-helps with that. The overall effect is something like git cherry-picking, 
+helps with that. The overall effect is something like 
+[Fossil merge --cherry-pick](https://www.fossil-scm.org/fossil/help/merge)
+or [git-cherry-pick](https://git-scm.com/docs/git-cherry-pick)
 except that it also copes with:
 * human-style software versioning
 * code that is not maintained in the same git repo
