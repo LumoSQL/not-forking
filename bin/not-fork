@@ -1,5 +1,13 @@
 #!/usr/bin/perl -w
 
+# Copyright 2020 The LumoSQL Authors, see LICENSES/MIT
+#
+# SPDX-License-Identifier: MIT
+# SPDX-FileCopyrightText: 2020 The LumoSQL Authors
+# SPDX-ArtifactOfProjectName: not-forking
+# SPDX-FileType: Code
+# SPDX-FileComment: Original by Claudio Calvelli, 2020
+
 # LumoSQL "not-fork" tool: track upstream changes to other packages
 # with consistent local modifications (没叉 or 不叉)
 
@@ -7,7 +15,7 @@
 # for example to use git it needs to be built with perl support, which
 # is the default; other VCSs may need to install perl modules.
 
-# See the LumoSQL documentation for more information about this tool
+# See the /doc directory for more information about this tool
 
 use strict;
 use Getopt::Long qw(GetOptions GetOptionsFromArray);

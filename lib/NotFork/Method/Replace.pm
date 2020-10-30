@@ -1,5 +1,13 @@
 package NotFork::Method::Replace;
 
+# Copyright 2020 The LumoSQL Authors, see LICENSES/MIT
+#
+# SPDX-License-Identifier: MIT
+# SPDX-FileCopyrightText: 2020 The LumoSQL Authors
+# SPDX-ArtifactOfProjectName: not-forking
+# SPDX-FileType: Code
+# SPDX-FileComment: Original by Claudio Calvelli, 2020
+
 use strict;
 use Carp;
 
