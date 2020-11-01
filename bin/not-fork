@@ -24,11 +24,13 @@ use Getopt::Long qw(GetOptions GetOptionsFromArray);
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 
-use NotFork::Get qw(set_input set_cache set_output all_names);
+use NotFork::Get qw(set_input set_cache set_output all_names version_atleast);
+
+use constant notfork_version => '0.1';
 
 Getopt::Long::Configure("bundling");
 
-my ($version, $commit, $query, $help, $noupdate, @names);
+my ($version, $commit, $query, $help, $noupdate, $check_version, @names);
 my $verbose = 1;
 my @options = (
     'c|commit=s'       => \$commit,
@@ -42,6 +44,7 @@ my @options = (
     'verbose=i'        => \$verbose,
     'quiet'            => sub { $verbose = 0 },
     'v|version=s'      => \$version,
+    'check-version=s'  => \$check_version,
     '<>'               => \&add_name,
 );
 
@@ -64,6 +67,12 @@ if (defined (my $home = $ENV{HOME})) {
 GetOptions(@options) or usage(1);
 
 $help and usage(0);
+
+if (defined $check_version) {
+    version_atleast(notfork_version, $check_version) and exit 0;
+    print notfork_version, "\n";
+    exit 1;
+}
 
 if (! @names) {
     for my $name (all_names()) {

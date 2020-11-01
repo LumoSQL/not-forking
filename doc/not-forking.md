@@ -264,6 +264,10 @@ or not it has an official version number; this is incompatible with `-v`
 extract the sources and apply modifications, instead it shows some
 information about what has been downloaded, including a version number
 if available.
+- `--check-version=`VERSION checks that the not-fork tool itself is
+at least the version specified; it exits with status OK if so, otherwise
+it exits with a failure status and produces its version number on
+standard output.
 
 If neither VERSION nor COMMIT\_ID is specified, the default is the latest
 available version, if it can be determined, or else an error message.

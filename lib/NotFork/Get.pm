@@ -25,6 +25,7 @@ our @EXPORT_OK = qw(
     all_names
     load_file
     list_files
+    version_atleast
 );
 our @EXPORT = @EXPORT_OK;
 our @ISA = qw(Exporter);
@@ -346,6 +347,12 @@ sub _cmp_version {
     $op eq '<=' and return $ch le $cv;
     # why did we end up here?
     undef;
+}
+
+sub version_atleast {
+    @_ == 2 or croak "Usage: version_atleast(VERSION1, VERSION2)";
+    my ($v1, $v2) = @_;
+    return _convert_version($v1) ge _convert_version($v2);
 }
 
 my %convert_version = (
