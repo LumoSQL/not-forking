@@ -1,3 +1,9 @@
+<!-- Copyright 2020 The LumoSQL Authors, see LICENSES/CC-BY-SA-4.0 -->
+<!-- SPDX-License-Identifier: CC-BY-SA-4.0 -->
+<!-- SPDX-FileCopyrightText: 2020 The LumoSQL Authors -->
+<!-- SPDX-ArtifactOfProjectName: LumoSQL -->
+<!-- SPDX-FileType: Documentation -->
+
 # Not-Forking Tool
 
 This directory contains the not-forking tool as developed for the 
@@ -6,8 +12,9 @@ but is more intelligent so that software can be mostly-automatically kept
 in synch with an upstream.
 
 Here you will find the tool and its libraries, and the [full documentation](doc/not-forking.md).
-It also contains an example configuration (in directory not-fork.d) which can
-be used for testing.
+It also contains an example configuration (in directory doc/examples) which can
+be used for testing: it is an old version of the one used by the LumoSQL build
+system, much simpler than the current version.
 
 For more advanced uses, LumoSQL has a more complicated configuration which
 tracks multiple upstreams and versions. 
@@ -31,5 +38,11 @@ following commands:
 perl Makefile.PL
 make
 perl -Iblib/lib bin/not-fork [options] ...
+```
+
+To try the tools using the included example configuration, use:
+
+```
+perl -Iblib/lib bin/not-fork -idoc/examples [other_options] ...
 ```
 
