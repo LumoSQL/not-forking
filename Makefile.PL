@@ -11,7 +11,7 @@ use ExtUtils::MakeMaker;
 WriteMakefile(
     NAME          => 'Notfork',
     DISTNAME      => 'not-fork',
-    VERSION       => '0.1',
+    VERSION       => '0.2',
     PMLIBDIRS     => [ 'lib' ],
     EXE_FILES     => [ 'bin/not-fork' ],
 );

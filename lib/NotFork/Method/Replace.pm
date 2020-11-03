@@ -42,8 +42,8 @@ sub load_data {
 }
 
 sub apply {
-    @_ == 6 or croak "Usage: REPLACE->apply(VCS_DIR, REPLACE_CALLBACK, EDIT_CALLBACK, VERSION, COMMIT_ID)";
-    my ($obj, $vcs, $r_call, $e_call, $version, $commit_id) = @_;
+    @_ == 7 or croak "Usage: REPLACE->apply(VCS_DIR, SUBTREE, REPLACE_CALLBACK, EDIT_CALLBACK, VERSION, COMMIT_ID)";
+    my ($obj, $vcs, $subtree, $r_call, $e_call, $version, $commit_id) = @_;
     my $src = $obj->{srcdir};
     for my $mods (@{$obj->{mods}}) {
 	my ($from, $to, $replace) = @$mods;

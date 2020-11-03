@@ -3,5 +3,5 @@
 
 method = sed
 --
-vdbeaux.c : sqlite3BtreeGetJournalname = BackendGetJournal
+vdbeaux.c : sqlite3PagerIsMemdb = BackendIsMemdb
 

@@ -14,6 +14,7 @@ Table of Contents
    * [Table of contents](#table-of-contents)
    * [Upstream definition file <a name="user-content-upstream"></a>](#upstream-definition-file-)
       * [git](#git)
+      * [fossil](#fossil)
       * [download](#download)
    * [Modification definition file <a name="user-content-modification"></a>](#modification-definition-file-)
    * [Example Configuration directory <a name="user-content-example"></a>](#example-configuration-directory-)
@@ -118,14 +119,34 @@ A software version can be identified by a generic git commit ID, or by a
 version string similar to the one described for the `compare` key, if the
 repository offers that as an option.
 
+## fossil
+
+The upstream sources are available via a public fossil repository; the following
+keys need to be present:
+
+- `repos` (or `repository`) is a valid argument to the `fossil clone` command.
+- optionally, `version` to convert a version string to a tag: the value is
+either a single string which is prefixed to the version number, or two
+strings separated by space, the first one is prefixed and the second appended.
+- optionally, `user` and `password` can be specified to obtain access to the
+repository (this is currently not implemented, all repositories must be
+accessible without authentication).
+
+A software version can be identified by a generic fossil artifact ID, or by
+a version string similar to the one described for the `compare` key, if the
+repository offers that as an option.
+
 ## download
 
 The upstream sources are released as published versions and downloaded
 directly; the following keys need to be present:
 
-- `uri` indicates where to obtain these sources, and can contain the special
-symbol `%V` to indicate the version or `%%` to indicate just a percentage
-sign (`%`)
+- `source-xxx` indicates where to obtain the source for a particular version;
+the value is a generic URL; the `xxx` needs to be replaced by a valid version
+number.
+- `prefix` indicates that a number of directories need to be removed from
+the unpacked file names, usually this will be 1 as tarballs start with a
+single directory named after the release and that contains all the files.
 
 TBC - we also need to say how to unpack the sources etc
 
@@ -260,14 +281,17 @@ assumption that different projects have different version numbering)
 only works for version control modules which support commit identifiers,
 and will retrieve the corresponding commit for the next NAME, whether
 or not it has an official version number; this is incompatible with `-v`
-- `-q` (or `--query`) completes all necessary downloads but do not
+- `-q` (or `--query`) completes all necessary downloads but does not
 extract the sources and apply modifications, instead it shows some
 information about what has been downloaded, including a version number
 if available.
+- `--list-versions` completes all necessary downloads but does not
+extract the sources and apply modifications, instead it shows all the
+version numbers known (these can be used as argument to `-v`/`--version`).
 - `--check-version=`VERSION checks that the not-fork tool itself is
 at least the version specified; it exits with status OK if so, otherwise
 it exits with a failure status and produces its version number on
-standard output.
+standard output. No other processing happens when this option is specified.
 
 If neither VERSION nor COMMIT\_ID is specified, the default is the latest
 available version, if it can be determined, or else an error message.

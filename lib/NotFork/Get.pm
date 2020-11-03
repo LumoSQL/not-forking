@@ -26,6 +26,7 @@ our @EXPORT_OK = qw(
     load_file
     list_files
     version_atleast
+    version_convert
 );
 our @EXPORT = @EXPORT_OK;
 our @ISA = qw(Exporter);
@@ -349,6 +350,13 @@ sub _cmp_version {
     undef;
 }
 
+sub version_convert {
+    @_ == 2 or croak "Usage: version_convert(VERSION, TYPE)";
+    my ($val, $type) = @_;
+    my $convert = _convert_function($type);
+    return $convert->($val);
+}
+
 sub version_atleast {
     @_ == 2 or croak "Usage: version_atleast(VERSION1, VERSION2)";
     my ($v1, $v2) = @_;
@@ -566,8 +574,9 @@ sub install {
 	make_path($cd);
 	my %cached = ();
 	my $vcs = $obj->{vcsbase};
+	my $subtree = $obj->{kw}{subtree};
 	for my $mobj (@{$obj->{mod}}) {
-	    $mobj->apply($vcs, sub { # replace callback
+	    $mobj->apply($vcs, $subtree, sub { # replace callback
 		my ($path, $newdata) = @_;
 		_store_file(\%filelist, $path, $newdata);
 	    }, sub { # edit callback

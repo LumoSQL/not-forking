@@ -61,11 +61,16 @@ sub load_data {
 
 # this is called to apply the substitutions; we read the file in memory, run
 # the changes, then write it to a temporary file
+# TODO - rewrite this using $vcs->list_files
 sub apply {
-    @_ == 6 or croak "Usage: SED->apply(VCS_DIR, REPLACE_CALLBACK, EDIT_CALLBACK, VERSION. IID)";
-    my ($obj, $vcs, $r_call, $e_call, $version, $commit_id) = @_;
+    @_ == 7 or croak "Usage: SED->apply(VCS_DIR, SUBTREE, REPLACE_CALLBACK, EDIT_CALLBACK, VERSION. IID)";
+    my ($obj, $vcs, $subtree, $r_call, $e_call, $version, $commit_id) = @_;
     my $src = $obj->{srcdir};
     $vcs =~ m|/$| or $vcs .= '/';
+    if (defined $subtree && $subtree ne '') {
+	$vcs .= $subtree;
+	$vcs =~ m|/$| or $vcs .= '/';
+    }
     my $len = length($vcs);
     for my $mods (@{$obj->{mods}}) {
 	my ($file_regex, $text_regex, $replacement) = @$mods;
@@ -75,13 +80,21 @@ sub apply {
 	    wanted => sub {
 		-f or return;
 		substr($_, 0, $len) eq $vcs and $_ = substr($_, $len);
+		my $orig;
 		if ($_ =~ $file_regex) {
-		    push @files, $_;
-		    return;
+		    $orig = $_;
+		} else {
+		    $orig = $_;
+		    s|^.*/|| or return;
+		    $_ =~ $file_regex or return;
 		}
-		my $orig = $_;
-		s|^.*/|| or return;
-		$_ =~ $file_regex and push @files, $orig;
+		my $dest = $orig;
+		if (defined $subtree && $subtree ne '') {
+		    $orig = $subtree;
+		    $orig =~ m|/$| or $orig .= '/';
+		    $orig .= $dest;
+		}
+		push @files, [$orig, $dest];
 	    },
 	    no_chdir => 1,
 	}, $vcs);
@@ -93,18 +106,19 @@ sub apply {
 	    }->{$1} || ''
 	}ge;
 	# ask to make a copy
-	my $copy = $e_call->(@files);
+	my $copy = $e_call->(map { $_->[0] } @files);
 	# and now update them
 	local $/ = undef;
-	for my $f (@files) {
-	    open(my $fh, '+<', "$copy/$f") or die "$f: $!\n";
+	for my $fp (@files) {
+	    my ($fo, $fd) = @$fp;
+	    open(my $fh, '+<', "$copy/$fo") or die "$fo: $!\n";
 	    my $data = <$fh>;
 	    $data =~ s/$text_regex/$replacement/g;
 	    seek $fh, 0, SEEK_SET;
-	    print $fh $data or die "$f: $!\n";
-	    truncate $fh, tell($fh) or die "$f: $!\n";;
-	    close $fh or die "$f: $!\n";;
-	    $r_call->($f, "$copy/$f");
+	    print $fh $data or die "$fo: $!\n";
+	    truncate $fh, tell($fh) or die "$fo: $!\n";;
+	    close $fh or die "$fo: $!\n";;
+	    $r_call->($fd, "$copy/$fo");
 	}
     }
 }

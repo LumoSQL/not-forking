@@ -14,7 +14,7 @@ use Fcntl ':seek';
 use Text::ParseWords qw(shellwords);
 
 sub new {
-    @_ == 4 or croak "Usage: Notfork::Method::Replace->new(NAME, SRCDIR, OPTIONS)";
+    @_ == 4 or croak "Usage: Notfork::Method::Patch->new(NAME, SRCDIR, OPTIONS)";
     my ($class, $name, $srcdir, $options) = @_;
     # if they've specified options to the "patch" program, use them; otherwise
     # use the defaults
@@ -37,7 +37,7 @@ sub new {
 # file; for us, the rest is something to pass unchanged to "patch"; we do
 # not load it in memory, rather we remember where it comes from
 sub load_data {
-    @_ == 3 or croak "Usage: REPLACE->load_data(FILENAME, FILEHANDLE)";
+    @_ == 3 or croak "Usage: PATCH->load_data(FILENAME, FILEHANDLE)";
     my ($obj, $fn, $fh) = @_;
     my $pos = tell $fh;
     defined $pos or die "$fn: $!\n";
@@ -48,8 +48,8 @@ sub load_data {
 # this is called to apply a patch; we copy the file from the original
 # (VCS dir) into a cache directory then apply the patch there
 sub apply {
-    @_ == 6 or croak "Usage: REPLACE->apply(VCS_DIR, REPLACE_CALLBACK, EDIT_CALLBACK, VERSION, ID)";
-    my ($obj, $vcs, $r_call, $e_call, $version, $commit_id) = @_;
+    @_ == 7 or croak "Usage: PATCH->apply(VCS_DIR, SUBTREE, REPLACE_CALLBACK, EDIT_CALLBACK, VERSION, ID)";
+    my ($obj, $vcs, $subtree, $r_call, $e_call, $version, $commit_id) = @_;
     my $src = $obj->{srcdir};
     for my $mods (@{$obj->{mods}}) {
 	my ($fn, $pos) = @$mods;

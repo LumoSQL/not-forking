@@ -26,11 +26,11 @@ use lib "$FindBin::Bin/../lib";
 
 use NotFork::Get qw(set_input set_cache set_output all_names version_atleast);
 
-use constant notfork_version => '0.1';
+use constant notfork_version => '0.2';
 
 Getopt::Long::Configure("bundling");
 
-my ($version, $commit, $query, $help, $noupdate, $check_version, @names);
+my ($version, $commit, $query, $help, $noupdate, $check_version, $list_versions, @names);
 my $verbose = 1;
 my @options = (
     'c|commit=s'       => \$commit,
@@ -44,6 +44,7 @@ my @options = (
     'verbose=i'        => \$verbose,
     'quiet'            => sub { $verbose = 0 },
     'v|version=s'      => \$version,
+    'list-versions'    => \$list_versions,
     'check-version=s'  => \$check_version,
     '<>'               => \&add_name,
 );
@@ -85,8 +86,9 @@ for my $np (@names) {
     my $nfobj = new NotFork::Get($name, $version, $commit);
     $nfobj->verbose($verbose);
     $nfobj->get($noupdate);
-    if ($query) {
-	$nfobj->info(\*STDOUT);
+    if ($list_versions || $query) {
+	$query and $nfobj->info(\*STDOUT);
+	$list_versions and print map { "$_\n" } $nfobj->all_versions;
     } else {
 	$nfobj->install();
     }
