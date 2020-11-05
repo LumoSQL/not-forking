@@ -14,5 +14,7 @@ WriteMakefile(
     VERSION       => '0.2',
     PMLIBDIRS     => [ 'lib' ],
     EXE_FILES     => [ 'bin/not-fork' ],
+    LICENSE       => 'MIT',
+    ABSTRACT      => 'merge multiple upstreams without forking them',
 );
 
