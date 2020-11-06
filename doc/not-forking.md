@@ -28,17 +28,17 @@ software needs some modifications.  Rather than fork our own version, we have
 developed a mechanism which we call "not-forking" to semi-automatically track
 upstream changes.
 
-The mechanism is similar to applying patches; however patches need to be
+The mechanism is similar to applying patches except patches need to be
 constantly updated as upstream sources changes, and the not-forking mechanism
 helps with that. The overall effect is something like 
 [Fossil merge --cherry-pick](https://www.fossil-scm.org/fossil/help/merge)
 or [git-cherry-pick](https://git-scm.com/docs/git-cherry-pick)
 except that it also copes with:
 * human-style software versioning
-* code that is not maintained in the same git repo
+* code that is not maintained in the same git/Fossil repo
 * code that is not maintained in git, but is just patches or in some other VCS
 * custom processing that is needed to be run for a specific patch
-* failing with an error asking for human intervention to solve differences with upstream
+* failing with an error asking for human intervention to solve major differences with upstream
 
 etc.
 
@@ -48,7 +48,31 @@ the minimum requirement is an upstream definition file; other files can also be
 present indicating what modifications to apply (if none are provided, the
 upstream sources are used unchanged).
 
+# Forking is To Be Avoided
+
+Forking is often a social rather than a technical issue. The not-forking tool
+assists in keeping friction low and helping developers only fork when they 
+absolutely need to.
+
+In 2020 the most commonly used public source code repositories are based on the
+git SCM, especially Github and Gitlab. The workflow and design of git naturally
+support forking, and Github has a prominent "Fork" button on every project. Github
+also has nearly 80 million distinct software projects under management, most of 
+them created by a forking mindset, and very many of them abandoned.
+
+The Fossil SCM discourages forking and encourages regular remerging of branches.
+Perhaps the Fossil approach is a gentler one, encouraging social engagement rather
+than increasingly-divergent code forks that don't talk to each other. Perhaps not,
+time will tell now that Fossil is becoming more widely used.
+
+Either way, not-forking tries to be the grease that helps projects cooperate in
+creating their bugs, rather than having mutually incompatible sets of bugs.
+
+
 # Upstream definition file <a name="upstream"></a>
+
+This file describes the nature of the upstream. What version control system
+does it use? Where are its repositories? What style of version string does it use?
 
 The file `upstream.conf` has a simple "key = value" format with one such
 key, value pair per line: blank lines and lines whose first nonblank
@@ -151,6 +175,11 @@ single directory named after the release and that contains all the files.
 TBC - we also need to say how to unpack the sources etc
 
 # Modification definition file <a name="modification"></a>
+
+This file contains instructions for modifying files, followed by the
+data that the instructions can use to make the modifications. The 
+data may be patches or complete file contents, and the instructions 
+are operations such as "patch" or "replace".
 
 There can be zero or more modification definition files in the configuration
 directory; each file has a name ending in `.mod` and they are processed

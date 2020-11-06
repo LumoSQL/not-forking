@@ -12,6 +12,7 @@ WriteMakefile(
     NAME          => 'Notfork',
     DISTNAME      => 'not-fork',
     VERSION       => '0.2',
+    AUTHOR	  => 'Claudio Calvelli',
     PMLIBDIRS     => [ 'lib' ],
     EXE_FILES     => [ 'bin/not-fork' ],
     LICENSE       => 'MIT',
