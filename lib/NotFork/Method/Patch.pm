@@ -48,8 +48,8 @@ sub load_data {
 # this is called to apply a patch; we copy the file from the original
 # (VCS dir) into a cache directory then apply the patch there
 sub apply {
-    @_ == 7 or croak "Usage: PATCH->apply(VCS_DIR, SUBTREE, REPLACE_CALLBACK, EDIT_CALLBACK, VERSION, ID)";
-    my ($obj, $vcs, $subtree, $r_call, $e_call, $version, $commit_id) = @_;
+    @_ == 8 or croak "Usage: PATCH->apply(VCS_DIR, VCS_OBJ, SUBTREE, REPLACE_CALLBACK, EDIT_CALLBACK, VERSION, ID)";
+    my ($obj, $vcs, $vcs_obj, $subtree, $r_call, $e_call, $version, $commit_id) = @_;
     my $src = $obj->{srcdir};
     for my $mods (@{$obj->{mods}}) {
 	my ($fn, $pos) = @$mods;

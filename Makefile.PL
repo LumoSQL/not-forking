@@ -11,14 +11,12 @@ use ExtUtils::MakeMaker;
 WriteMakefile(
     NAME          => 'Notfork',
     DISTNAME      => 'not-fork',
-    VERSION       => '0.2',
+    VERSION       => '0.2.1',
     AUTHOR	  => 'Claudio Calvelli',
     PMLIBDIRS     => [ 'lib' ],
     EXE_FILES     => [ 'bin/not-fork' ],
+    PREREQ_PM     => { 'Text::Glob' => 0 },
     LICENSE       => 'MIT',
     ABSTRACT      => 'merge multiple upstreams without forking them',
-    PREREQ_PM     => {
-	             "Text::Glob" => 0,
-	             }
 );
 

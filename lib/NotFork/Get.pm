@@ -27,6 +27,7 @@ our @EXPORT_OK = qw(
     list_files
     version_atleast
     version_convert
+    cache_hash
 );
 our @EXPORT = @EXPORT_OK;
 our @ISA = qw(Exporter);
@@ -37,7 +38,7 @@ my $cache = undef;
 
 my (%checked_input, %checked_output, %checked_cache);
 
-sub _hash {
+sub cache_hash {
     my ($index) = @_;
     return substr(sha512_hex($index), 42, 32);
 }
@@ -314,7 +315,7 @@ sub _load_vcs {
     exists $data->{verbose} and $vcsobj->verbose($data->{verbose});
     $data->{vcs} = $vcsobj;
     $data->{cache_index} = $vcsobj->cache_index;
-    $data->{hash} = _hash($data->{cache_index});
+    $data->{hash} = cache_hash($data->{cache_index});
     delete $data->{has_data};
 }
 
@@ -575,8 +576,9 @@ sub install {
 	my %cached = ();
 	my $vcs = $obj->{vcsbase};
 	my $subtree = $obj->{kw}{subtree};
+	my $sp = defined $subtree ? "$subtree/" : '';
 	for my $mobj (@{$obj->{mod}}) {
-	    $mobj->apply($vcs, $subtree, sub { # replace callback
+	    $mobj->apply($vcs, $vcsobj, $subtree, sub { # replace callback
 		my ($path, $newdata) = @_;
 		_store_file(\%filelist, $path, $newdata);
 	    }, sub { # edit callback
@@ -585,7 +587,7 @@ sub install {
 			# make a copy of this file before editing
 			$path =~ m!(.*)/[^/]+$!
 			    and make_path("$cd/$1", { verbose => 0, mode => 0700 });
-			cp("$vcs/$path", "$cd/$path");
+			cp("$vcs/$sp$path", "$cd/$path");
 			$cached{$path} = 1;
 		    }
 		}

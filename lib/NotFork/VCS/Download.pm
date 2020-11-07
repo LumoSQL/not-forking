@@ -10,7 +10,7 @@ package NotFork::VCS::Download;
 
 use strict;
 use Carp;
-use NotFork::Get qw(version_convert);
+use NotFork::Get qw(version_convert cache_hash);
 use NotFork::VCSCommon;
 
 our @ISA = qw(NotFork::VCSCommon);
@@ -40,10 +40,15 @@ sub new {
 	vlist   => \@versions,
 	vurl    => \%versions,
 	vnumber => $versions[-1],
-	repos   => "not-fork-download-$name",
 	prefix  => $prefix,
     }, $class;
     $obj;
+}
+
+# name used to index elements in download cache; we use the same cache index for
+# all downloads, but then we'll also add a hash of the actual URL
+sub cache_index {
+    'not-fork-downloads';
 }
 
 sub get {
@@ -70,13 +75,13 @@ sub set_version {
     exists $obj->{vurl}{$version} or die "No such version: $version\n";
     exists $obj->{dl_dir} or die "Need to call DOWNLOAD->get before set_version\n";
     my $dir = $obj->{dl_dir};
-    my $vn = $obj->{vnumber};
-    my $dstdir = "$dir/v$vn.dir";
-    my $dstidx = "$dir/v$vn.idx";
+    my $url = $obj->{vurl}{$version};
+    my $hash = cache_hash($url);
+    my $dstdir = "$dir/$hash.dir";
+    my $dstidx = "$dir/$hash.idx";
     if (! -d $dstdir || ! -f $dstidx) {
-	my $dstfile = "$dir/v$vn.src";
+	my $dstfile = "$dir/$hash.src";
 	if (! -f $dstfile) {
-	    my $url = $obj->{vurl}{$version};
 	    my $verbose = $obj->{verbose};
 	    $verbose > 1 and print "Downloading $url -> $dir\n";
 	    my @cmd;

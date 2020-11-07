@@ -61,43 +61,22 @@ sub load_data {
 
 # this is called to apply the substitutions; we read the file in memory, run
 # the changes, then write it to a temporary file
-# TODO - rewrite this using $vcs->list_files
 sub apply {
-    @_ == 7 or croak "Usage: SED->apply(VCS_DIR, SUBTREE, REPLACE_CALLBACK, EDIT_CALLBACK, VERSION. IID)";
-    my ($obj, $vcs, $subtree, $r_call, $e_call, $version, $commit_id) = @_;
+    @_ == 8 or croak "Usage: SED->apply(VCS_DIR, VCS_OBJ, SUBTREE, REPLACE_CALLBACK, EDIT_CALLBACK, VERSION. IID)";
+    my ($obj, $vcs, $vcs_obj, $subtree, $r_call, $e_call, $version, $commit_id) = @_;
     my $src = $obj->{srcdir};
-    $vcs =~ m|/$| or $vcs .= '/';
-    if (defined $subtree && $subtree ne '') {
-	$vcs .= $subtree;
-	$vcs =~ m|/$| or $vcs .= '/';
-    }
-    my $len = length($vcs);
     for my $mods (@{$obj->{mods}}) {
 	my ($file_regex, $text_regex, $replacement) = @$mods;
 	# figure out which files match
 	my @files;
-	find({
-	    wanted => sub {
-		-f or return;
-		substr($_, 0, $len) eq $vcs and $_ = substr($_, $len);
-		my $orig;
-		if ($_ =~ $file_regex) {
-		    $orig = $_;
-		} else {
-		    $orig = $_;
-		    s|^.*/|| or return;
-		    $_ =~ $file_regex or return;
-		}
-		my $dest = $orig;
-		if (defined $subtree && $subtree ne '') {
-		    $orig = $subtree;
-		    $orig =~ m|/$| or $orig .= '/';
-		    $orig .= $dest;
-		}
-		push @files, [$orig, $dest];
-	    },
-	    no_chdir => 1,
-	}, $vcs);
+	$vcs_obj->list_files($subtree, sub {
+	    my ($name, $path) = @_;
+	    if ($name !~ $file_regex) {
+		(my $short = $name) =~ s|^.*/|| or return;
+		$short =~ $file_regex or return;
+	    }
+	    push @files, [$name, $path];
+	});
 	# replace some variables in $replacement
 	$replacement =~ s(\$(LUMO_\w+)){
 	    {
@@ -110,15 +89,15 @@ sub apply {
 	# and now update them
 	local $/ = undef;
 	for my $fp (@files) {
-	    my ($fo, $fd) = @$fp;
-	    open(my $fh, '+<', "$copy/$fo") or die "$fo: $!\n";
+	    my ($name, $path) = @$fp;
+	    open(my $fh, '+<', "$copy/$name") or die "$name: $!\n";
 	    my $data = <$fh>;
 	    $data =~ s/$text_regex/$replacement/g;
 	    seek $fh, 0, SEEK_SET;
-	    print $fh $data or die "$fo: $!\n";
-	    truncate $fh, tell($fh) or die "$fo: $!\n";;
-	    close $fh or die "$fo: $!\n";;
-	    $r_call->($fd, "$copy/$fo");
+	    print $fh $data or die "$name: $!\n";
+	    truncate $fh, tell($fh) or die "$name: $!\n";;
+	    close $fh or die "$name: $!\n";;
+	    $r_call->($name, "$copy/$name");
 	}
     }
 }
