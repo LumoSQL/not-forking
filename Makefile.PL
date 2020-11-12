@@ -16,6 +16,7 @@ WriteMakefile(
     PMLIBDIRS     => [ 'lib' ],
     EXE_FILES     => [ 'bin/not-fork' ],
     PREREQ_PM     => { 'Text::Glob' => 0 },
+    PREREQ_PRINT  => true,
     LICENSE       => 'MIT',
     ABSTRACT      => 'merge multiple upstreams without forking them',
 );
