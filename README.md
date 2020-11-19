@@ -29,7 +29,8 @@ To install the tool:
 ```
 perl Makefile.PL
 make
-make install
+make test        <== this does dependency checks
+make install     <== you will likely need root for this
 ```
 
 At which point the `not-fork` command is installed in the system and its
@@ -42,6 +43,7 @@ following commands:
 ```
 perl Makefile.PL
 make
+make test
 perl -Iblib/lib bin/not-fork [options] ...
 ```
 

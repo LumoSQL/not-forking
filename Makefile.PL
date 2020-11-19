@@ -15,10 +15,15 @@ WriteMakefile(
     AUTHOR	  => 'Claudio Calvelli',
     PMLIBDIRS     => [ 'lib' ],
     EXE_FILES     => [ 'bin/not-fork' ],
-    PREREQ_PM     => { 'Text::Glob' => 0,
-                       'Git' => 0 },
-    PREREQ_PRINT  => true,
     LICENSE       => 'MIT',
     ABSTRACT      => 'merge multiple upstreams without forking them',
 );
 
+# No longer use PREREQ_PM and PREREQ_PRINT. All dependency
+# checking for Perl modules and anything else is done in 
+# "make test".
+#
+# https://perldoc.perl.org/ExtUtils::MakeMaker says:
+#
+# "your tests should fail with missing dependencies informing
+# the user more strongly that something is wrong...."
