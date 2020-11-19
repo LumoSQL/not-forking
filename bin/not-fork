@@ -96,14 +96,16 @@ for my $np (@names) {
     my ($name, $version, $commit) = @$np;
     my $nfobj = new NotFork::Get($name, $version, $commit);
     $nfobj->verbose($verbose);
-    $nfobj->get($noupdate);
     if ($check_prereq) {
 	$nfobj->check_prereq(\%prereq);
-    } elsif ($list_versions || $query) {
-	$query and $nfobj->info(\*STDOUT);
-	$list_versions and print map { "$_\n" } $nfobj->all_versions;
     } else {
-	$nfobj->install();
+	$nfobj->get($noupdate);
+	if ($list_versions || $query) {
+	    $query and $nfobj->info(\*STDOUT);
+	    $list_versions and print map { "$_\n" } $nfobj->all_versions;
+	} else {
+	    $nfobj->install();
+	}
     }
 }
 
