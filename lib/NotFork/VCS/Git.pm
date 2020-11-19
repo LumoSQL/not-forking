@@ -10,7 +10,7 @@ package NotFork::VCS::Git;
 
 use strict;
 use Carp;
-use Git;
+use NotFork::Get qw(add_prereq prereq_program prereq_module);
 use NotFork::VCSCommon;
 
 our @ISA = qw(NotFork::VCSCommon);
@@ -23,9 +23,21 @@ sub new {
     $obj;
 }
 
+# check that we have any prerequisite software installed
+sub check_prereq {
+    @_ == 2 or croak "Usage: PATCH->check_prereq(RESULT)";
+    my ($obj, $result) = @_;
+    add_prereq($result,
+	[\&prereq_module, 'Git'],
+	[\&prereq_program, 'git', '2.22', 'version', qr/\b(\d[\.\d]*)\b/],
+    );
+    $obj;
+}
+
 sub get {
     @_ == 2 || @_ == 3 or croak "Usage: GIT->get(DIR [, SKIP_UPDATE?])";
     my ($obj, $dir, $noupdate) = @_;
+    require Git;
     my $git;
     my $verbose = $obj->{verbose};
     if (-d "$dir/.git") {
@@ -146,8 +158,10 @@ sub info {
 	print $fh "Information for $name:\n";
 	print $fh "url = ",
 	      $git->command_oneline('config', '--get', 'remote.origin.url'), "\n";
-	my $branch = $git->command_oneline('branch', '--show-current');
-	defined $branch and print $fh "branch = $branch\n";
+	eval {
+	    my $branch = $git->command_oneline('branch', '--show-current');
+	    defined $branch and print $fh "branch = $branch\n";
+	};
 	my ($version, $commit_id) = $obj->version;
 	defined $version and print $fh "version = $version\n";
 	defined $commit_id and print $fh "commit_id = $commit_id\n";

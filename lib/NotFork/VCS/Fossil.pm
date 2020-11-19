@@ -10,6 +10,7 @@ package NotFork::VCS::Fossil;
 
 use strict;
 use Carp;
+use NotFork::Get qw(add_prereq prereq_program);
 use NotFork::VCSCommon;
 
 our @ISA = qw(NotFork::VCSCommon);
@@ -48,6 +49,16 @@ sub get {
 	_fossil($fossil, 'open', "$dir/db");
     }
     $obj->{fossil} = $fossil;
+    $obj;
+}
+
+# check that we have any prerequisite software installed
+sub check_prereq {
+    @_ == 2 or croak "Usage: PATCH->check_prereq(RESULT)";
+    my ($obj, $result) = @_;
+    add_prereq($result,
+	[\&prereq_program, 'fossil', '1.0', 'version', qr/\b(\d[\.\d]*)\b/],
+    );
     $obj;
 }
 

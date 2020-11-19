@@ -21,16 +21,17 @@ use strict;
 use Getopt::Long qw(GetOptions GetOptionsFromArray);
 
 # modules may be inside the working copy rather than installed
-use FindBin;
-use lib "$FindBin::Bin/../lib";
+#use FindBin;
+#use lib "$FindBin::Bin/../lib";
 
-use NotFork::Get qw(set_input set_cache set_output all_names version_atleast);
+use NotFork::Get qw(set_input set_cache set_output all_names version_atleast recommend);
 
-use constant notfork_version => '0.2';
+our $VERSION = '0.3';
 
 Getopt::Long::Configure("bundling");
 
-my ($version, $commit, $query, $help, $noupdate, $check_version, $list_versions, @names);
+my ($version, $commit, $query, $help, $noupdate, $check_version, $list_versions);
+my ($check_prereq, $check_recommend, @names);
 my $verbose = 1;
 my @options = (
     'c|commit=s'       => \$commit,
@@ -46,6 +47,8 @@ my @options = (
     'v|version=s'      => \$version,
     'list-versions'    => \$list_versions,
     'check-version=s'  => \$check_version,
+    'check-prereq'     => \$check_prereq,
+    'check-recommend'  => \$check_recommend,
     '<>'               => \&add_name,
 );
 
@@ -69,9 +72,16 @@ GetOptions(@options) or usage(1);
 
 $help and usage(0);
 
+my %prereq;
+if (defined $check_recommend) {
+    %prereq = recommend();
+    my $found_all = list_prereq();
+    exit $found_all ? 0 : 1
+}
+
 if (defined $check_version) {
-    version_atleast(notfork_version, $check_version) and exit 0;
-    print notfork_version, "\n";
+    version_atleast($VERSION, $check_version) and exit 0;
+    print "$VERSION\n";
     exit 1;
 }
 
@@ -81,17 +91,25 @@ if (! @names) {
     }
 }
 
+%prereq = ();
 for my $np (@names) {
     my ($name, $version, $commit) = @$np;
     my $nfobj = new NotFork::Get($name, $version, $commit);
     $nfobj->verbose($verbose);
     $nfobj->get($noupdate);
-    if ($list_versions || $query) {
+    if ($check_prereq) {
+	$nfobj->check_prereq(\%prereq);
+    } elsif ($list_versions || $query) {
 	$query and $nfobj->info(\*STDOUT);
 	$list_versions and print map { "$_\n" } $nfobj->all_versions;
     } else {
 	$nfobj->install();
     }
+}
+
+if ($check_prereq) {
+    my $found_all = list_prereq();
+    exit $found_all ? 0 : 1;
 }
 
 sub add_name {
@@ -132,5 +150,40 @@ sub usage {
     print $fh "-c/-v needs to be specified before each NAME, after a NAME has\n";
     print $fh "been processed, these options revert to the default\n";
     exit $code;
+}
+
+sub list_prereq {
+    my $title = 1;
+    my $found_all = 1;
+    my @prereq = sort { lc($a) cmp lc($b) || $a cmp $b } keys %prereq;
+    my $maxv = 0;
+    for my $name (@prereq) {
+	my ($ok, $version) = @{$prereq{$name}};
+	$ok && $verbose < 1 and next;
+	$maxv < length($version) and $maxv = length($version);
+    }
+    for my $name (@prereq) {
+	my ($ok, $version) = @{$prereq{$name}};
+	$ok && $verbose < 1 and next;
+	$ok or $found_all = 0;
+	if ($verbose < 1) {
+	    if ($title) {
+		$title = 0;
+		print "\nWARNING - recommended program and/or perl modules not found\n";
+	    }
+	    if (defined $version && $version ne '') {
+		print "$name >= $version\n";
+	    } else {
+		print "$name\n";
+	    }
+	} else {
+	    if ($title) {
+		$title = 0;
+		print "Recommended programs and perl modules\n";
+	    }
+	    defined $version or $version = '';
+	    printf "%-9s %-${maxv}s %s\n", $ok ? 'OK' : 'NOT FOUND', $version, $name;
+	}
+    }
 }
 

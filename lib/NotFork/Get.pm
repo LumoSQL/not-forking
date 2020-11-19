@@ -9,6 +9,7 @@ package NotFork::Get;
 # SPDX-FileComment: Original by Claudio Calvelli, 2020
 
 use strict;
+use version;
 require Exporter;
 use Carp;
 use Digest::SHA qw(sha512_hex);
@@ -28,6 +29,11 @@ our @EXPORT_OK = qw(
     version_atleast
     version_convert
     cache_hash
+    add_prereq
+    add_prereq_or
+    prereq_program
+    prereq_module
+    recommend
 );
 our @EXPORT = @EXPORT_OK;
 our @ISA = qw(Exporter);
@@ -358,12 +364,6 @@ sub version_convert {
     return $convert->($val);
 }
 
-sub version_atleast {
-    @_ == 2 or croak "Usage: version_atleast(VERSION1, VERSION2)";
-    my ($v1, $v2) = @_;
-    return _convert_version($v1) ge _convert_version($v2);
-}
-
 my %convert_version = (
     version => \&_convert_version,
 );
@@ -387,6 +387,141 @@ sub _convert_version {
     }
     $vn =~ s((\d+)){sprintf "%015d", $1}ge;
     $vn . $suffix;
+}
+
+# run some code for each known VCS
+sub _forall {
+    my ($type, $code, @args) = @_;
+    my %vcs_seen;
+    for my $inc (@INC) {
+	-d "$inc/NotFork/$type" or next;
+	opendir(D, "$inc/NotFork/$type") or next;
+	while (defined (my $ent = readdir D)) {
+	    $ent =~ /^\./ and next;
+	    (my $pm = $ent) =~ s/\.pm$//i or next;
+	    exists $vcs_seen{$ent} and next;
+	    $vcs_seen{$ent} = 0;
+	    eval {
+		my $name = "NotFork::$type\::$pm";
+		eval "require $name";
+		$@ and die $@;
+		$code->($name, @args);
+	    };
+	    $@ and die $@;
+	}
+	closedir D;
+    }
+}
+
+# make a list of all prerequisite programs and modules
+sub recommend {
+    @_ == 0 or croak "Usage: recommend";
+    my %prereq;
+    _forall('VCS', sub { $_[0]->check_prereq(\%prereq); });
+    _forall('Method', sub { $_[0]->check_prereq(\%prereq); });
+    %prereq;
+}
+
+# check that we have all prerequisites for a particular configuration
+sub check_prereq {
+    @_ == 2 or croak "Usage: GET->check_prereq(RESULT)";
+    my ($obj, $result) = @_;
+    my $vcs = $obj->{vcs};
+    $vcs->check_prereq($result);
+    if (exists $obj->{mod}) {
+	for my $mobj (@{$obj->{mod}}) {
+	    $mobj->check_prereq($result);
+	}
+    }
+    $obj;
+}
+
+# helper functions to implement a module's check_prereq
+sub _add_prereq_internal {
+    my $find_any = shift @_;
+    my $result = shift @_;
+    my $first_item = $_[0];
+    while (@_) {
+	my ($code, $name, $version_min, @args) = @{shift @_};
+	if (exists $result->{$name} && defined $result->{$name}) {
+	    # if we don't care which version, reuse the previous result
+	    if (! defined $version_min) {
+		$find_any and return;
+		next;
+	    }
+	    my ($ok, $version) = @{$result->{$name}};
+	    if ($ok) {
+		# we found one before, if it's new enough that'll do
+		if (version_atleast($version, $version_min)) {
+		    $find_any and return;
+		    next;
+		}
+	    } else {
+		# we did not find one before, if we looked for a recent enough
+		# version no need to look again
+		if (defined $version && version_atleast($version, $version_min)) {
+		    $find_any and return;
+		    next;
+		}
+	    }
+	    # we cannot reuse the previous check
+	}
+	my $version = $code->($name, $version_min, @args);
+	# if we found it, and it's new enough, then we're done
+	if (defined $version &&
+	    (! defined $version_min || version_atleast($version, $version_min)))
+	{
+	    $result->{$name} = [1, $version];
+	    $find_any and return;
+	} else {
+	    $find_any and next;
+	    # remember what version we actually wanted
+	    $result->{$name} = [0, $version_min];
+	}
+    }
+    $find_any or return;
+    # not found... add the first (preferred) one as requirement
+    $result->{$first_item->[1]} = [0, $first_item->[2]];
+}
+
+sub add_prereq {
+    @_ >= 2 or croak "Usage: add_prereq(RESULT, DATA...)";
+    _add_prereq_internal(0, @_);
+}
+
+sub add_prereq_or {
+    @_ >= 2 or croak "Usage: add_prereq_or(RESULT, DATA...)";
+    _add_prereq_internal(1, @_);
+}
+
+sub prereq_program {
+    my ($name, $version_min, $version_call, $version_regex) = @_;
+    for my $p (split(/:/, $ENV{PATH})) {
+	-x "$p/$name" or next;
+	defined $version_call or return '';
+	my $have = `$p/$name $version_call`;
+	defined $have or return '';
+	defined $version_regex and $have =~ $version_regex and return $1;
+	return $have;
+    }
+    # not found
+    return undef;
+}
+
+sub prereq_module {
+    my ($name, $version_min) = @_;
+    local $@;
+    # getting a package's version is not simple; perl will check a minimum
+    # version for us, and we'll have to re-check if somebody else wants
+    # a newer one later
+    if (defined $version_min) {
+	eval "require $name $version_min;";
+    } else {
+	eval "require $name;";
+    }
+    $@ and return undef;
+    defined $version_min and return $version_min;
+    return '';
 }
 
 sub verbose {
@@ -793,6 +928,12 @@ sub _store_file {
 	defined $data or die "$name: $!\n";
     }
     $filelist->{$idx} = [$name, $type, $size, $data];
+}
+
+sub version_atleast {
+    @_ == 2 or croak "Usage: version_atleast(VERSION1, VERSION2)";
+    my ($v1, $v2) = @_;
+    return _convert_version($v1) ge _convert_version($v2);
 }
 
 1

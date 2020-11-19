@@ -22,6 +22,13 @@ sub new {
     }, $class;
 }
 
+# check that we have any prerequisite software installed
+sub check_prereq {
+    @_ == 2 or croak "Usage: REPLACE->check_prereq(RESULT)";
+    my ($obj, $result) = @_;
+    $obj;
+}
+
 sub load_data {
     @_ == 3 or croak "Usage: REPLACE->load_data(FILENAME, FILEHANDLE)";
     my ($obj, $fn, $fh) = @_;

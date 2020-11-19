@@ -10,7 +10,7 @@ package NotFork::VCS::Download;
 
 use strict;
 use Carp;
-use NotFork::Get qw(version_convert cache_hash);
+use NotFork::Get qw(version_convert cache_hash add_prereq add_prereq_or prereq_program);
 use NotFork::VCSCommon;
 
 our @ISA = qw(NotFork::VCSCommon);
@@ -49,6 +49,28 @@ sub new {
 # all downloads, but then we'll also add a hash of the actual URL
 sub cache_index {
     'not-fork-downloads';
+}
+
+# check that we have any prerequisite software installed
+sub check_prereq {
+    @_ == 2 or croak "Usage: PATCH->check_prereq(RESULT)";
+    my ($obj, $result) = @_;
+    add_prereq_or($result,
+	[\&prereq_program, 'curl'],
+	[\&prereq_program, 'wget'],
+    );
+    add_prereq($result,
+	[\&prereq_program, 'file'],
+    );
+    ref $obj or return $obj;
+    # we should check for what this download actually needs...
+    # add_prereq($result,
+	# [\&prereq_program, 'tar'],
+	# [\&prereq_program, 'gzip'],
+	# [\&prereq_program, 'bzip2'],
+	# [\&prereq_program, 'xz'],
+    # );
+    $obj;
 }
 
 sub get {
@@ -115,7 +137,7 @@ sub set_version {
 	    } elsif ($cp eq 'bzip2') {
 		push @pipe, 'bzip2 -dc';
 	    } elsif ($cp eq 'XZ') {
-		push @pipe, 'zx -dc';
+		push @pipe, 'xz -dc';
 	    } else {
 		die "Don't know how to uncompress \"$cp\"\n";
 	    }

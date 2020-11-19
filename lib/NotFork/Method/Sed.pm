@@ -12,7 +12,7 @@ use strict;
 use Carp;
 use Fcntl ':seek';
 use File::Find;
-use Text::Glob 'glob_to_regex';
+use NotFork::Get qw(add_prereq prereq_module);
 
 sub new {
     @_ == 4 or croak "Usage: Notfork::Method::Sed->new(NAME, SRCDIR, OPTIONS)";
@@ -25,12 +25,23 @@ sub new {
     }, $class;
 }
 
+# check that we have any prerequisite software installed
+sub check_prereq {
+    @_ == 2 or croak "Usage: PATCH->check_prereq(RESULT)";
+    my ($obj, $result) = @_;
+    add_prereq($result,
+	[\&prereq_module, 'Text::Glob'],
+    );
+    $obj;
+}
+
 # this is called after NotFork::Get has read the first part of a modification
 # file: for us, the rest is a list of "regular-expression = replacement"
 # which we parse and save
 sub load_data {
     @_ == 3 or croak "Usage: SED->load_data(FILENAME, FILEHANDLE)";
     my ($obj, $fn, $fh) = @_;
+    require Text::Glob;
     my $srcdir = $obj->{srcdir};
     while (defined (my $line = <$fh>)) {
 	$line =~ /^\s*$/ and next;
@@ -39,7 +50,7 @@ sub load_data {
 	$line =~ s/^\s+//;
 	$line =~ s/^\s*([^:\s]+)\s*:\s*// or die "$fn.$.: Missing file pattern\n";
 	my $file_glob = $1;
-	my $file_regex = glob_to_regex($file_glob);
+	my $file_regex = Text::Glob::glob_to_regex($file_glob);
 	my $search_regex;
 	if ($line =~ s/^(['"])//) {
 	    my $quote = $1;

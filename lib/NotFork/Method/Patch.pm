@@ -12,6 +12,7 @@ use strict;
 use Carp;
 use Fcntl ':seek';
 use Text::ParseWords qw(shellwords);
+use NotFork::Get qw(add_prereq prereq_program);
 
 sub new {
     @_ == 4 or croak "Usage: Notfork::Method::Patch->new(NAME, SRCDIR, OPTIONS)";
@@ -31,6 +32,16 @@ sub new {
 	patch   => \@patch,
 	list    => \@list,
     }, $class;
+}
+
+# check that we have any prerequisite software installed
+sub check_prereq {
+    @_ == 2 or croak "Usage: PATCH->check_prereq(RESULT)";
+    my ($obj, $result) = @_;
+    add_prereq($result,
+	[\&prereq_program, 'patch'],
+    );
+    $obj;
 }
 
 # this is called after NotFork::Get has read the first part of a modification
