@@ -20,10 +20,7 @@ WriteMakefile(
 );
 
 # No longer use PREREQ_PM and PREREQ_PRINT. All dependency
-# checking for Perl modules and anything else is done in 
-# "make test".
-#
-# https://perldoc.perl.org/ExtUtils::MakeMaker says:
-#
-# "your tests should fail with missing dependencies informing
-# the user more strongly that something is wrong...."
+# checking for Perl modules and anything else is now moved
+# to t/00-check-dependencies.t run by "make test". See
+# https://perldoc.perl.org/ExtUtils::MakeMaker under
+# "your tests should fail with missing dependencies..."
