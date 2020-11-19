@@ -29,7 +29,6 @@ To install the tool:
 ```
 perl Makefile.PL
 make
-make test        <== this does dependency checks
 make install     <== you will likely need root for this
 ```
 
@@ -37,13 +36,18 @@ At which point the `not-fork` command is installed in the system and its
 required modules are available where your perl installation expects to
 find them.
 
+You might be wondering about runtime dependencies. That is covered in the
+full documentation, but in brief, not-fork knows what is needed for each of
+many different scenarios and it does not need to be addressed now. That 
+means you don't need to worry about what not-fork might be used for when
+you install it.
+
 It is also possible to use the tool without installing by using the
 following commands:
 
 ```
 perl Makefile.PL
 make
-make test
 perl -Iblib/lib bin/not-fork [options] ...
 ```
 
