@@ -12,6 +12,7 @@ use warnings;
 use Test::More tests => 2;
 
 # Add all dependent modules for not-forking to this array
+# Make sure they match PM_DEPENDS in ../Makefile.PL
 my @perlmodules = ( "Git", "Text::Glob" );
 
 diag "\nChecking Perl modules exist";
