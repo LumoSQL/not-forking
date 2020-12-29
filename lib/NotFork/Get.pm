@@ -382,11 +382,19 @@ sub _convert_version {
 	$suffix = 'a';
     } elsif ($vn =~ s/-beta$//) {
 	$suffix = 'b';
-    } else {
+    } elsif ($vn =~ s/-gamma$//) {
 	$suffix = 'c';
+    } elsif ($vn =~ s/-delta$//) {
+	$suffix = 'd';
+    } else {
+	$suffix = 'z';
     }
-    $vn =~ s((\d+)){sprintf "%015d", $1}ge;
-    $vn . $suffix;
+    # we need to add extra ".0" components before adding the suffix, otherwise
+    # alpha and beta may sort later than stable which is not what we like to see
+    my @vn = split(/(\d+)/, $vn);
+    @vn < 16 ? push(@vn, ('.000000000000000') x (16 - @vn)) : ($#vn = 15);
+    @vn = map { /^\d/ ? sprintf("%015d", $_) : $_ } @vn;
+    join('', @vn, $suffix);
 }
 
 # run some code for each known VCS
