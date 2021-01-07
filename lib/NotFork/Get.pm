@@ -222,6 +222,7 @@ sub load_file {
     my $if = undef;
     my $ifval = 1;
     my $stop = defined $options ? $options->{stop} : undef;
+    my %conditionals;
     while (defined (my $line = <$fh>)) {
 	defined $stop && $stop->($line) and last;
 	$line =~ /^\s*$/ and next;
@@ -253,6 +254,7 @@ sub load_file {
 		    or die "$sf.$.: Invalid operand for $kw $item: [$line]\n";
 		my ($op, $val) = ($1, $2);
 		$compare->($op, $have, $val, $override) or $ifval = 0;
+		push @{$conditionals{$element}}, [$op, $val];
 	    }
 	    $if = 0;
 	} elsif ($kw eq 'else') {
@@ -269,6 +271,7 @@ sub load_file {
 	    $hash->{$kw} = $line;
 	}
     }
+    $hash->{_conditionals} = \%conditionals;
     defined $options or return 1;
     if (exists $options->{condition}) {
 	my $condition = $options->{condition};
@@ -336,6 +339,19 @@ sub _load_method {
     $hash->{method} = $mobj;
 }
 
+# convert "op" to a comparison
+sub _cmp {
+    my ($op, $ch, $cv) = @_;
+    $op eq '=' and return $ch eq $cv;
+    $op eq '!=' and return $ch ne $cv;
+    $op eq '>' and return $ch gt $cv;
+    $op eq '>=' and return $ch ge $cv;
+    $op eq '<' and return $ch lt $cv;
+    $op eq '<=' and return $ch le $cv;
+    # why did we end up here?
+    undef;
+}
+
 # determine if version is within range
 sub _cmp_version {
     my ($op, $have, $val, $override) = @_;
@@ -348,13 +364,7 @@ sub _cmp_version {
     my $convert = _convert_function($override);
     my $ch = $convert->($have);
     my $cv = $convert->($val);
-    $op eq '=' and return $ch eq $cv;
-    $op eq '>' and return $ch gt $cv;
-    $op eq '>=' and return $ch ge $cv;
-    $op eq '<' and return $ch lt $cv;
-    $op eq '<=' and return $ch le $cv;
-    # why did we end up here?
-    undef;
+    return _cmp($op, $ch, $cv);
 }
 
 sub version_convert {
@@ -560,9 +570,10 @@ sub commit {
 }
 
 sub _lock {
-    my ($mode, $file, $name) = @_;
+    my ($mode, $file, $name, $nolock) = @_;
     open (my $fh, $mode, $file) or die "$file: $!\n";
     if (! flock $fh, LOCK_EX|LOCK_NB) {
+	$nolock and die "Lock already held";
 	print STDERR "Waiting for lock on $name...";
 	flock $fh, LOCK_EX or die " $file: $!\n";
 	print STDERR "OK\n";
@@ -584,11 +595,11 @@ sub get {
     _check_cache_dir();
     my $vl = $obj->{verbose} && $obj->{verbose} > 2;
     make_path($cache, { verbose => $vl, mode => 0700 });
-    my $clfh = _lock('>>', "$cache/.lock", 'cache directory');
+    my $clfh = _lock('>>', "$cache/.lock", 'cache directory', $obj->{_nolock});
     my $cd = $obj->{cache} = "$cache/$obj->{hash}";
     my $vlfh;
     if (-d $cd) {
-	$vlfh = _lock('<', "$cd/index", "cache for $obj->{cache_index}");
+	$vlfh = _lock('<', "$cd/index", "cache for $obj->{cache_index}", $obj->{_nolock});
 	my $index = <$vlfh>;
 	defined $index or die "Missing index for cache $cd\n";
 	chomp $index;
@@ -599,7 +610,7 @@ sub get {
 	# the next _lock() is the only thing which can create the index file,
 	# and we are inside another lock, so we can safely use ">" and we
 	# know we aren't going to truncate the file created by somebody else
-	$vlfh = _lock('>', "$cd/index", "cache for $obj->{cache_index}");
+	$vlfh = _lock('>', "$cd/index", "cache for $obj->{cache_index}", $obj->{_nolock});
 	print $vlfh "$obj->{cache_index}\n" or die "$cd/index $!\n";
 	$noupdate = undef;
     }
@@ -629,8 +640,73 @@ sub all_versions {
     @_ == 1 or croak "Usage: NOTFORK->all_versions";
     my ($obj) = @_;
     exists $obj->{has_data} or croak "Need to call get() before all_versions()";
+    exists $obj->{all_versions} and return @{$obj->{all_versions}};
     my $convert = _convert_function($obj->{kw}{compare});
-    sort { $convert->($a) cmp $convert->($b) } $obj->{vcs}->all_versions;
+    # get list of conditionals on version seen when loading the upstream file
+    my @cond = sort {
+	$convert->($a->[1]) cmp $convert->($b->[1]) or $a->[0] cmp $a->[1]
+    } @{$obj->{kw}{_conditionals}{version}};
+    my @v;
+    if (@cond) {
+	# there's a conditional on versions, so things may need multiple
+	# passes to get all possibilities
+	# There's probably a better way to do this, but it'll do for now
+	my %v;
+	my $add_versions = sub {
+	    my ($o) = @_;
+	    for my $v ($o->{vcs}->all_versions) {
+		$v{$v} = undef;
+	    }
+	};
+	my $class = ref $obj;
+	my $get_add_versions = sub {
+	    eval {
+		my ($ver) = @_;
+		my $o = $class->new($obj->{name}, $ver, undef);
+		# the "get" call will fail if it points to a cache item
+		# we've already locked; and but this is OK as we've already
+		# had the list in that case
+		$o->{version} = $ver;
+		$o->{_nolock} = 1;
+		$o->get(1);
+		$add_versions->($o);
+	    };
+	};
+	$add_versions->($obj);
+	my $prev = ['', ''];
+	for my $vp (@cond) {
+	    my ($op, $ver) = @$vp;
+	    my $cv = $convert->($ver);
+	    $op eq $prev->[0] && $ver eq $prev->[1] and next;
+	    $get_add_versions->($ver);
+	    (my $nv = $ver) =~ s/(\d+)(\D*)$/($1 - 1) . $2/e;
+	    if ($nv ne $ver) {
+		$get_add_versions->($nv);
+	    }
+	}
+	@v = sort { $convert->($a) cmp $convert->($b) } keys %v;
+    } else {
+	# normal case, no conditionals on versions
+	@v = sort { $convert->($a) cmp $convert->($b) } $obj->{vcs}->all_versions;
+    }
+    if ($obj->{kw}{version_filter}) {
+	# some versions are excluded, for whatever reason, so trim the list
+	my $line = $obj->{kw}{version_filter};
+	my ($element, $compare, $override) = @{$if_conditions{version}};
+	if (defined $override && exists $obj->{kw}{$override}) {
+	    $override = $obj->{kw}{$override};
+	} else {
+	    $override = undef;
+	}
+	while ($line ne '') {
+	    $line =~ s/^(<=|<|=|>=|>|!=|!=)\s*(\S+)\s*//
+		or die "Invalid operand for version_filter [$line]\n";
+	    my ($op, $val) = ($1, $2);
+	    @v = grep { $compare->($op, $_, $val, $override) } @v;
+	}
+    }
+    $obj->{all_versions} = \@v;
+    return @v;
 }
 
 sub last_version {

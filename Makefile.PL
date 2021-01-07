@@ -15,7 +15,6 @@ WriteMakefile(
     AUTHOR        => 'Claudio Calvelli',
     PMLIBDIRS     => [ 'lib' ],
     EXE_FILES     => [ 'bin/not-fork' ],
-    PREREQ_PM     => { 'Text::Glob' => 0 },
     LICENSE       => 'MIT',
     ABSTRACT      => 'merge multiple upstreams without forking them',
 );
