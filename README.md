@@ -17,6 +17,7 @@ and that is the best way to contribute and interact with the community. You
 may raise PRs on Github, but they will end up being pushed through Fossil anyway.
 
 Here you will find the tool and its libraries, and the [full documentation](doc/not-forking.md).
+
 It also contains an example configuration (in directory doc/examples) which can
 be used for testing: it is an old version of the one used by the LumoSQL build
 system, much simpler than the current version.
