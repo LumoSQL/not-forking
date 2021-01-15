@@ -12,9 +12,6 @@ Table of Contents
 
    * [Not-Forking Upstream Source Code Tracker](#not-forking-upstream-source-code-tracker)
    * [Upstream definition file](#upstream-definition-file-)
-      * [git](#git)
-      * [fossil](#fossil)
-      * [download](#download)
    * [Modification definition file](#modification-definition-file-)
    * [Example Configuration directory](#example-configuration-directory-)
    * [Not-forking tool](#not-forking-tool-)
@@ -22,24 +19,43 @@ Table of Contents
 Not-Forking Upstream Source Code Tracker <a name="not-forking-upstream-source-code-tracker-"></a>
 ========================================
 
-The LumoSQL project incorporates software from other projects and some of that
-software needs some modifications.  Rather than fork our own version, we have
-developed a mechanism which we call "not-forking" to semi-automatically track
-upstream changes.
+Not-Forking semi-automatically incorporates software from upstream projects by
+tracking and merging. Designed for use in build and test systems, Not-forking
+can combine an arbitary number of upstreams accessible over the internet by
+any or all of [git](https://git-scm.org), [fossil](https://fossil-scm.org) and
+web download. Not-Forking was originally developed for the 
+[LumoSQL project](https://lumosql.org/src/lumosql) and is 
+now fully independent.
 
-The mechanism is similar to applying patches except patches need to be
-constantly updated as upstream sources changes, and the not-forking mechanism
-helps with that. The overall effect is something like 
+<b>Simple Use Case:</b> A project needs a particular cryptographic or database
+library, and the library maintainers have irregular releases with many bugfixes
+inbetween.  In order to protect the project from being influenced by the bugfix
+cycles of the library, the project will often decide to copy the library
+in-tree, and then periodically hand-port new library versions to suit the
+project's release cycle. This is effectively a fork. With Not-forking, the
+project never needs to face this decision.
+
+<b>More Advanced Use Case:</b> An embedded software product requires a single
+image containing operating system and applications, with a new version twice a
+year. Embedded software is frequently shipped with wildly out of date versions
+because this is a hard problem and often not a priority for the product
+manufacturer. Not-forking reduces the maintenance of pulling many upstreams
+into the image, while still giving control over how this is done in the build
+process (eg by adding a product-specific version string to imported code.)
+
+The Not-forking mechanism is similar to applying patches, except patches need to
+be constantly updated as upstream sources changes.
+
+The overall effect is something like 
 [Fossil merge --cherry-pick](https://www.fossil-scm.org/fossil/help/merge)
 or [git-cherry-pick](https://git-scm.com/docs/git-cherry-pick)
-except that it also copes with:
+except that it additionally copes with the messiness of software including:
+
 * human-style software versioning
 * code that is not maintained in the same git/Fossil repo
 * code that is not maintained in git, but is just patches or in some other VCS
 * custom processing that is needed to be run for a specific patch
-* failing with an error asking for human intervention to solve major differences with upstream
-
-etc.
+* failing with an error asking for human intervention when there are major differences with upstream
 
 Each project tracked by not-forking needs to define what to track, and what
 changes to apply. This is done by providing a number of files in a directory;
@@ -47,25 +63,36 @@ the minimum requirement is an upstream definition file; other files can also be
 present indicating what modifications to apply (if none are provided, the
 upstream sources are used unchanged).
 
-# Forking is To Be Avoided
+Not-forking is the grease that helps projects cooperate when creating bugs
+in the same codebase, rather than creating mutually incompatible sets of bugs.
 
-Forking is often a social rather than a technical issue. The not-forking tool
-assists in keeping friction low and helping developers only fork when they 
-absolutely need to.
+# Forking Regarded as Bad
 
-In 2020 the most commonly used public source code repositories are based on the
-git SCM, especially Github and Gitlab. The workflow and design of git naturally
-support forking, and Github has a prominent "Fork" button on every project. Github
-also has nearly 80 million distinct software projects under management, most of 
-them created by a forking mindset, and very many of them abandoned.
+Forking is often a social rather than a technical issue, and is part of
+different development philosophies. The not-forking tool assists in keeping
+friction low and helping developers only fork when they absolutely need to.
+Not-forking helps avoid projects carrying a fork of external code they need,
+even if the upstream code/library is not maintained in a way that is compatible
+with the prioject.  Not-forking also pushes back against Git/Github's "Fork by
+default".
 
-The Fossil SCM discourages forking and encourages regular remerging of branches.
-Perhaps the Fossil approach is a gentler one, encouraging social engagement rather
-than increasingly-divergent code forks that don't talk to each other. Perhaps not,
-time will tell now that Fossil is becoming more widely used.
+In 2021 the most commonly used public source code repositories are based on the
+[git SCM](https://git-scm.org), especially Github and Gitlab.  Github puts a
+prominent "Fork" button on every project and says 
+"[Forking is at the core of social coding at GitHub](https://guides.github.com/activities/forking/)". 
+As a result, as of January 2021,
+[Github hosts 43 million distinct software projects](https://github.com/search?q=is:public), 
+most of them not original but created by Github's Fork, and very many of them abandoned. Github
+is used to maintain some wonderful code, but 43 million projects is an impossibly
+large number.
 
-Either way, not-forking tries to be the grease that helps projects cooperate in
-creating their bugs, rather than having mutually incompatible sets of bugs.
+In contrast, the [Fossil SCM](https://fossil-scm.org) discourages forking and
+encourages regular remerging of branches.  Fossil tries to make it easier to nudge
+users and contributors into more engagement, rather than increasingly-divergent
+code forks that don't talk to each other. Where Github's flagship feature is "Fork",
+the [Fossil timeline](https://sqlite.org/src/timeline) is key to how Fossil works (demonstrated here with the
+source code of SQLite, a very busy project). The Fossil Timeline supports the 
+[Fossil development philosophy](https://fossil-scm.org/home/doc/trunk/www/fossil-v-git.wiki#devorg).
 
 
 # Upstream definition file <a name="upstream-definition-file-"></a>
