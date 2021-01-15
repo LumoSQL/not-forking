@@ -11,16 +11,15 @@ Table of Contents
 =================
 
    * [Not-Forking Upstream Source Code Tracker](#not-forking-upstream-source-code-tracker)
-   * [Table of contents](#table-of-contents)
-   * [Upstream definition file <a name="user-content-upstream"></a>](#upstream-definition-file-)
+   * [Upstream definition file](#upstream-definition-file-)
       * [git](#git)
       * [fossil](#fossil)
       * [download](#download)
-   * [Modification definition file <a name="user-content-modification"></a>](#modification-definition-file-)
-   * [Example Configuration directory <a name="user-content-example"></a>](#example-configuration-directory-)
-   * [Not-forking tool <a name="user-content-tool"></a>](#not-forking-tool-)
+   * [Modification definition file](#modification-definition-file-)
+   * [Example Configuration directory](#example-configuration-directory-)
+   * [Not-forking tool](#not-forking-tool-)
 
-Not-Forking Upstream Source Code Tracker
+Not-Forking Upstream Source Code Tracker <a name="not-forking-upstream-source-code-tracker-"></a>
 ========================================
 
 The LumoSQL project incorporates software from other projects and some of that
@@ -69,7 +68,7 @@ Either way, not-forking tries to be the grease that helps projects cooperate in
 creating their bugs, rather than having mutually incompatible sets of bugs.
 
 
-# Upstream definition file <a name="upstream"></a>
+# Upstream definition file <a name="upstream-definition-file-"></a>
 
 This file describes the nature of the upstream. What version control system
 does it use? Where are its repositories? What style of version string does it use?
@@ -174,7 +173,7 @@ single directory named after the release and that contains all the files.
 
 TBC - we also need to say how to unpack the sources etc
 
-# Modification definition file <a name="modification"></a>
+# Modification definition file <a name="modification-definition-file-"></a>
 
 This file contains instructions for modifying files, followed by the
 data that the instructions can use to make the modifications. The 
@@ -237,7 +236,7 @@ the sequence determined by the ordering of the modification definition
 files, so for example a `replace` method only makes sense if it appears
 first (otherwise it undoes all previous changes).
 
-# Example Configuration directory <a name="example"></a>
+# Example Configuration directory <a name="example-configuration-directory-"></a>
 
 Obtaining SQLite sources and replacing btree.c and btreeInt.h with the ones
 from sqlightning, and applying a patch to vdbeaux.c:
@@ -280,7 +279,7 @@ Files `files/btree.c` and `files/btreeInt.h`: the new contents.
 A more complete example can be found in the directory "not-fork.d/sqlite"
 which tracks upstream updates from SQLite.
 
-# Not-forking tool <a name="tool"></a>
+# Not-forking tool <a name="not-forking-tool-"></a>
 
 The `tool` directory contain a script, `not-fork` which runs the not-forking
 mechanism on a directory.  Usage is:
