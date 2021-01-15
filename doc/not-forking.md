@@ -11,6 +11,7 @@ Table of Contents
 =================
 
    * [Not-Forking Upstream Source Code Tracker](#not-forking-upstream-source-code-tracker)
+   * [Forking regarded as bad](#forking-regarded-as-bad)
    * [Upstream definition file](#upstream-definition-file-)
    * [Modification definition file](#modification-definition-file-)
    * [Example Configuration directory](#example-configuration-directory-)
@@ -66,15 +67,15 @@ upstream sources are used unchanged).
 Not-forking is the grease that helps projects cooperate when creating bugs
 in the same codebase, rather than creating mutually incompatible sets of bugs.
 
+<a name="forking-regarded-as-bad"></a>
 # Forking Regarded as Bad
 
-Forking is often a social rather than a technical issue, and is part of
-different development philosophies. The not-forking tool assists in keeping
-friction low and helping developers only fork when they absolutely need to.
-Not-forking helps avoid projects carrying a fork of external code they need,
-even if the upstream code/library is not maintained in a way that is compatible
-with the prioject.  Not-forking also pushes back against Git/Github's "Fork by
-default".
+Forking is often a social rather than a technical issue.  The not-forking tool
+assists in keeping friction low and helping developers only fork when they
+absolutely need to.  Not-forking helps avoid projects carrying a fork of
+external code they need, even if the upstream code/library is not maintained in
+a way that is compatible with the project.  Not-forking also pushes back
+against Git/Github's "Fork by default" development philosophy.
 
 In 2021 the most commonly used public source code repositories are based on the
 [git SCM](https://git-scm.org), especially Github and Gitlab.  Github puts a
@@ -110,12 +111,14 @@ There is a special line format to indicate conditionals; currently, the
 only condition which can be tested is whether the version number is in
 a specified range, using the syntax:
 
+<b>
 ```
 if version \[>\[=\] FIRST\_VERSION\] \[<\[=\] LAST\_VERSION\]
 ...
 [else ...]
 endif
 ```
+</b>
 
 If a key is present more than once, the last value seen wins; therefore,
 it is possible to define a key inside a conditional block, and then to
@@ -139,7 +142,11 @@ exception that a suffix "-alpha" or "-beta" cause the version to be
 considered before the string without such suffix: examples of version
 numbers in order are:
 
-- `0.9a` < `0.9z` < `0.10` < `1.0` < `1.1-alpha` < `1.1-beta` < `1.1` < `1.1a`
+<b>
+```
+0.9a < 0.9z < 0.10 < 1.0 < 1.1-alpha < 1.1-beta < 1.1 < 1.1a
+```
+</b>
 
 This definition will even cope with the numbering scheme used by TeX and
 METAFONT which are "Pi" and "e" respectively. The definition can be extended to
@@ -265,17 +272,23 @@ first (otherwise it undoes all previous changes).
 
 # Example Configuration directory <a name="example-configuration-directory-"></a>
 
-Obtaining SQLite sources and replacing btree.c and btreeInt.h with the ones
-from sqlightning, and applying a patch to vdbeaux.c:
+This set of files obtains SQLite sources and replaces `btree.c` and `btreeInt.h`
+with the ones from sqlightning, and applying a patch to `vdbeaux.c`:
 
 File `upstream.conf`:
 
+<b>
 ```
 vcs   = git
 repos = https://github.com/sqlite/sqlite.git
 ```
+</b>
+
 
 File `btree.mod`:
+
+
+<b>
 
 ```
 method = replace
@@ -284,7 +297,13 @@ src/btree.c    = files/btree.c
 src/btreeInt.h = files/btreeInt.h
 ```
 
+</b>
+
+
 File `vdbeaux.mod`:
+
+<b>
+
 ```
 method = patch
 --
@@ -301,9 +320,11 @@ method = patch
           }
 ```
 
-Files `files/btree.c` and `files/btreeInt.h`: the new contents.
+</b>
 
-A more complete example can be found in the directory "not-fork.d/sqlite"
+Files `files/btree.c` and `files/btreeInt.h`: the entire files with new contents.
+
+A more complete example can be found in the LumoSQL directory "not-fork.d/sqlite"
 which tracks upstream updates from SQLite.
 
 # Not-forking tool <a name="not-forking-tool-"></a>
@@ -311,7 +332,11 @@ which tracks upstream updates from SQLite.
 The `tool` directory contain a script, `not-fork` which runs the not-forking
 mechanism on a directory.  Usage is:
 
+<b>
+```
 not-fork \[OPTIONS\] \[NAME\]...
+```
+</b>
 
 where the following options are available:
 
@@ -375,9 +400,11 @@ and is readable, any non-comment, non-empty lines are processed before
 any command-line options with an implicit `--` prepended and with spaces
 around the first `=` removed, if present: so for example a file containing:
 
+<b>
 ```
 cache = /var/cache/LumoSQL/not-fork
 ```
+</b>
 
 would change the default cache from `.cache/LumoSQL/not-fork` in the user's
 home directory to the above directory inside `/var/cache`; it can still

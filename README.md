@@ -18,11 +18,11 @@ may raise PRs on Github, but they will end up being pushed through Fossil anyway
 
 Here you will find the tool and its libraries, and the [full documentation](doc/not-forking.md).
 It also contains an example configuration (in directory doc/examples) which can
-be used for testing: it is an old version of the one used by the LumoSQL build
-system, much simpler than the current version.
+be used for testing.
 
-For more advanced uses, LumoSQL has a more complicated configuration which
-tracks multiple upstreams and versions. 
+For more advanced uses, the
+[LumoSQL not-forking directory](https://lumosql.org/src/lumosql/dir?ci=tip&name=not-fork.d)
+is an example of tracking multiple upstreams and versions. 
 
 To install the tool:
 
