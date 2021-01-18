@@ -9,14 +9,14 @@
 This directory contains the not-forking tool as developed for the 
 [LumoSQL project](http://lumosql.org). Not-forking is like patching or merging,
 but is more intelligent so that software can be mostly-automatically kept
-in synch with an upstream.
+in synch with one or more upstream source code repositories or tar files.
 
 Not-Forking addresses the class of problems which includes:
 
-* Tracking multiple upstreams, each with its own release schedule and version control systems. Manual merging is difficult, but failing to merge or only occasionally merging will often result in a hard fork
+* Tracking multiple upstreams, each with a different release schedule and version control system. Manual merging is difficult, but failing to merge or only occasionally merging will often result in a hard fork
 * Tracking an upstream with unmergeable diffs. This means that even if there is only one upstream and even if the patch set is not complicated, a manual merge is still the only way
 * [Vendoring](https://lwn.net/Articles/836911/), where a package copies a library or module into its own tree, avoiding the versioning problems that arise when using system-provided libraries. This then becomes a standalone fork until the next copy is done, which often involves porting
-* Vendoring with version control, for example many of the [132 forks of LibVNC](https://github.com/LibVNC/libvncserver/network/members) are up to hundreds of commits behind the original, and seemingly manually synced up with the original every year or two
+* Vendoring with version control, for example some of the [132 forks of LibVNC](https://github.com/LibVNC/libvncserver/network/members) are for shipping products which are up to hundreds of commits behind the original. Seemingly they are manually synced with the original every year or two
 
 If you are reading this on Github, you are looking at a read-only mirror.
 The official home is the [Fossil repository](https://lumosql.org/src/not-forking),
