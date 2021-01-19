@@ -51,7 +51,7 @@ sub get {
 	    or die "Inconsistent cache: $url // $obj->{repos}\n";
 	if (! $noupdate) {
 	    my @q = $verbose > 2 ? ('-v') : ($verbose == 2 ? () : ('-q'));
-	    eval { $git->command('pull', @q); };
+	    eval { $git->command('fetch', @q); };
 	    if ($@) {
 		# Git module is rather buggy... 141 is a SIGCHLD rewritten wrongly
 		$@ =~ /command returned error: 141/ or die $@;
