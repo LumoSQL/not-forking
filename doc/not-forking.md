@@ -349,7 +349,7 @@ be stored, and it can be either a directory created by a previous run of
 this tool, or a new directory (missing or empty directory); default is
 `sources` within the current directory; note that existing sources in
 this directory may be overwritten or deleted by the tool
-- `-c`CACHE\_DIRECTORY (or `--cache=CACHE\_DIRECTORY`)
+- `-k`CACHE\_DIRECTORY (or `--cache=CACHE\_DIRECTORY`)
 is a place used by the program to keep downloads
 and working copies; it must be either a new (missing or empty) directory
 or a directory created by a orevious run of the tool; default is
@@ -368,10 +368,31 @@ if available.
 - `--list-versions` completes all necessary downloads but does not
 extract the sources and apply modifications, instead it shows all the
 version numbers known (these can be used as argument to `-v`/`--version`).
+- `--verbose=`LEVEL changes the number of messages produced; higher
+numbers may be good for debugging, but may provide a confusing amount
+of information; `--quiet` is an alias for `--verbose=`0 and disables
+any messages except fatal errors.
+- `--update` asks to connect to network and request updates to any
+repositories needed to complete the requested operation; this is
+the default
+- `--no-update` asks to avoid updating repositories which are already
+cached; if the version requested is newer than the last update, the
+operation will fail
 - `--check-version=`VERSION checks that the not-fork tool itself is
 at least the version specified; it exits with status OK if so, otherwise
 it exits with a failure status and produces its version number on
 standard output. No other processing happens when this option is specified.
+- `-V` (or `--my-version`) prints the version of the program itself
+and exits (the `--version` option is already used to select a version
+of a package to extract)
+- `--check-prereq` checks dependencies necessary to download and install
+the required sources; for example this could check for the presence of
+`git` or `fossil` if these are required for the operation; prints the
+list of anything missing
+- `--check-recommend` is similar to `--check-prereq` except that it
+looks for any dependency which could possibly be needed to use the
+program; for example this could check for `fossil` even if the current
+project only needs `git`
 
 If neither VERSION nor COMMIT\_ID is specified, the default is the latest
 available version, if it can be determined, or else an error message.
@@ -422,4 +443,11 @@ of messages selected by the verbosity setting will go to standard output;
 this will allow us to increase the amount of information provided and make
 it available if there is a processing error; however in the current version
 this is just planned, and not yet implemented.
+
+The tool will always try to update repositories from the network, unless
+`--no-update` is on the command line, or `no-update` is in the configuration
+file and is not overridden by an `--update` on the command line; a future
+version will automatically select `--no-update` if it has not been explicitely
+told otherwise and a repository has been updated recently (we also need to
+decide what "recently" actually means in this context).
 
