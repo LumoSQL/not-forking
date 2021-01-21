@@ -27,12 +27,12 @@ use Getopt::Long qw(GetOptions GetOptionsFromArray);
 
 use NotFork::Get qw(set_input set_cache set_output all_names version_atleast recommend);
 
-our $VERSION = '0.3';
+our $VERSION = '0.3.1';
 
 Getopt::Long::Configure("bundling");
 
 my ($version, $commit, $query, $help, $noupdate, $check_version, $list_versions);
-my ($my_version, $check_prereq, $check_recommend, @names);
+my ($offline, $my_version, $check_prereq, $check_recommend, @names);
 my $verbose = 1;
 my @options = (
     'c|commit=s'       => \$commit,
@@ -45,6 +45,8 @@ my @options = (
     'q|query'          => \$query,
     'verbose=i'        => \$verbose,
     'quiet'            => sub { $verbose = 0 },
+    'online'           => sub { $offline = 0 },
+    'offline'          => \$offline,
     'v|version=s'      => \$version,
     'list-versions'    => \$list_versions,
     'check-version=s'  => \$check_version,
@@ -103,6 +105,7 @@ for my $np (@names) {
     my ($name, $version, $commit) = @$np;
     my $nfobj = new NotFork::Get($name, $version, $commit);
     $nfobj->verbose($verbose);
+    $nfobj->offline($offline);
     if ($check_prereq) {
 	$nfobj->check_prereq(\%prereq);
     } else {
@@ -159,6 +162,11 @@ sub usage {
     print $fh "    --no-update skips updates from upstream if there is already a cached\n";
     print $fh "    version; --update is the default action of checking for upstream\n";
     print $fh "    updates before extracting the sources\n";
+    print $fh "--online | --offline\n";
+    print $fh "    --offline skips any operation which needs to access the network;\n";
+    print $fh "    this may result in the program stopping with an error if the data\n";
+    print $fh "    is not available on a local cache; --online is the default where the\n";
+    print $fh "    network can be accessed if required\n";
     print $fh "-V --my-version\n";
     print $fh "    Print version number of not-fork\n";
     print $fh "--check_version=NUMBER\n";

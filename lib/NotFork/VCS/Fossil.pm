@@ -24,29 +24,32 @@ sub new {
 
 sub get {
     @_ == 2 || @_ == 3 or croak "Usage: FOSSIL->get(DIR [, SKIP_UPDATE?])";
-    my ($obj, $dir, $noupdate) = @_;
+    my ($obj, $fossil, $noupdate) = @_;
+    $obj->{offline} and $noupdate = 1;
     my $verbose = $obj->{verbose};
-    my $fossil = "$dir/src";
-    if (-f "$dir/db" && -d $fossil) {
+    my $fossil_db = $fossil;
+    $fossil_db =~ s|/[^/]*$|/db|;
+    if (-f $fossil_db && -d $fossil) {
 	# assume we have already cloned
 	my $url = _fossil_get($fossil, 'remote');
 	$url eq $obj->{repos}
 	    or die "Inconsistent cache: $url // $obj->{repos}\n";
 	if (! $noupdate) {
-	    $verbose > 1 and print "Updating $obj->{name} in $dir\n";
+	    $verbose > 1 and print "Updating $obj->{name} in $fossil\n";
 	    _fossil($fossil, 'pull', @{$obj->{fossil_args}});
 	}
     } else {
-	# need to clone into $dir
-	mkdir $dir;
-	$verbose > 1 and print "Cloning $obj->{name}: $obj->{repos} --> $dir\n";
+	# need to clone into $fossil_src
+	$obj->{offline}
+	    and die "Would need to clone $obj->{repos}\nProhibited by --offline\n";
+	$verbose > 1 and print "Cloning $obj->{name}: $obj->{repos} --> $fossil_db\n";
 	my @args;
 	$verbose > 2 and push @args, '-v';
 	$obj->{fossil_args} = \@args;
 	# XXX user/password?
 	mkdir $fossil;
-	_fossil($fossil, 'clone', @args, $obj->{repos}, "$dir/db");
-	_fossil($fossil, 'open', "$dir/db");
+	_fossil($fossil, 'clone', @args, $obj->{repos}, $fossil_db);
+	_fossil($fossil, 'open', $fossil_db);
     }
     $obj->{fossil} = $fossil;
     $obj;
@@ -70,6 +73,10 @@ sub list_files {
     my $fossil = $obj->{fossil};
     my $fh = _fossil_read($fossil, 'ls');
     $obj->_list_files($fh, $fossil, 0, $subtree, $call);
+    # this does not include files like "manifest" so we look for them specially
+    for my $sf (qw(manifest manifest.tags manifest.uuid)) {
+	-f "$fossil/$sf" and $call->($sf, "$fossil/$sf");
+    }
     _fossil_close($fh);
     $obj;
 }

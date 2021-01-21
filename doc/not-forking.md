@@ -378,6 +378,11 @@ the default
 - `--no-update` asks to avoid updating repositories which are already
 cached; if the version requested is newer than the last update, the
 operation will fail
+- `--offline` prohibits any network access; if data required is not
+available in a local cache, the operation will fail
+- `--online` allows the program to connect to network when data is
+not available in a local cache; this is the default behaviour unless
+`offline` is specified in the configuration file
 - `--check-version=`VERSION checks that the not-fork tool itself is
 at least the version specified; it exits with status OK if so, otherwise
 it exits with a failure status and produces its version number on
@@ -444,10 +449,26 @@ this will allow us to increase the amount of information provided and make
 it available if there is a processing error; however in the current version
 this is just planned, and not yet implemented.
 
-The tool will always try to update repositories from the network, unless
-`--no-update` is on the command line, or `no-update` is in the configuration
-file and is not overridden by an `--update` on the command line; a future
-version will automatically select `--no-update` if it has not been explicitely
-told otherwise and a repository has been updated recently (we also need to
-decide what "recently" actually means in this context).
+The tool may need to access the network to obtain sources; this can be
+stopped in two ways:
+
+- adding `offline` to the configuration file, or specifying `--offline` in
+the command line prohibits access to the network; this may result in an
+operation failing with an error, where the message mentions `--offline`
+to suggest why it stopped; this can be overridden with `--online` in the
+command line.
+
+- adding `no-update` to the configuration file, or specifying `--no-update`
+in the command line will use a local cached repository if available; this
+will normally be sufficient, however asking for a version newer than the
+last update will fail; the default behaviour can be restored by adding
+`--update` to the command line, which will contact the remote server to
+see if an update is available and download it if so.
+
+There is a plan to add a time-based default if neither `--update` nor
+`--no-update` is specified (in the command line or in the configuration
+file): instead of always defaulting to `--update`, the tool would check
+the time of the last ypdate, and default to `--no-update` if that time
+is "recent"; this is not yet implemented, and also we need to decide what
+"recent" actually means in this context.
 

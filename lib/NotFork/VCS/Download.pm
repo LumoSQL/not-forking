@@ -104,6 +104,8 @@ sub set_version {
     if (! -d $dstdir || ! -f $dstidx) {
 	my $dstfile = "$dir/$hash.src";
 	if (! -f $dstfile) {
+	    $obj->{offline}
+		and die "Would require downloading $url\nProhibited by --offline\n";
 	    my $verbose = $obj->{verbose};
 	    $verbose > 1 and print "Downloading $url -> $dir\n";
 	    my @cmd;

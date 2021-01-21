@@ -20,6 +20,7 @@ sub _new {
 	repos   => $repos,
 	name    => $name,
 	verbose => 1,
+	offline => 0,
 	_id     => $id,
     }, $class;
     exists $options->{user} and $obj->{user} = $options->{user};
@@ -46,6 +47,14 @@ sub verbose {
     my $obj = shift;
     @_ or return $obj->{verbose};
     $obj->{verbose} = shift(@_) || 0;
+    $obj;
+}
+
+sub offline {
+    @_ == 1 || @_ == 2 or croak _croak($_[0], "->offline [(LEVEL)]");
+    my $obj = shift;
+    @_ or return $obj->{offline};
+    $obj->{offline} = shift(@_) || 0;
     $obj;
 }
 

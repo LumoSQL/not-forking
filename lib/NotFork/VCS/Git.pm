@@ -40,6 +40,7 @@ sub get {
     my ($obj, $topdir, $noupdate) = @_;
     require Git;
     my $verbose = $obj->{verbose};
+    $obj->{offline} and $noupdate = 1;
     my $repos = $topdir;
     $repos =~ s|[^/]*$|main_clone|;
     if (-d "$repos/.git") {
@@ -59,6 +60,8 @@ sub get {
 	}
     } else {
 	# need to clone into $repos
+	$obj->{offline}
+	    and die "Would need to clone $obj->{repos}\nProhibited by --offline\n";
 	$verbose > 1 and print "Cloning $obj->{name}: $obj->{repos} --> $repos\n";
 	my @args = ( '--no-checkout' );
 	exists $obj->{branch} and push @args, ('-b', $obj->{branch});

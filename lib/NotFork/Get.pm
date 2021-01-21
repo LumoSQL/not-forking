@@ -172,6 +172,7 @@ sub new {
     my $obj = bless {
 	name    => $name,
 	verbose => 1,
+	offline => 0,
     }, $class;
     defined $version and $obj->version($version);
     defined $commit and $obj->commit($commit);
@@ -322,6 +323,7 @@ sub _load_vcs {
     my $vcsobj = "NotFork::VCS::$module"->new($data->{name}, $hash);
     $@ and die "$sf: $@";
     exists $data->{verbose} and $vcsobj->verbose($data->{verbose});
+    exists $data->{offline} and $vcsobj->offline($data->{offline});
     $data->{vcs} = $vcsobj;
     $data->{cache_index} = $vcsobj->cache_index;
     $data->{hash} = cache_hash($data->{cache_index});
@@ -551,6 +553,15 @@ sub verbose {
     $obj;
 }
 
+sub offline {
+    @_ == 1 || @_ == 2 or croak "Usage: NOTFORK->offline [(LEVEL)]";
+    my $obj = shift;
+    @_ or return $obj->{offline};
+    $obj->{offline} = shift(@_) || 0;
+    exists $obj->{vcs} and $obj->{vcs}->offline($obj->{offline});
+    $obj;
+}
+
 sub version {
     @_ == 1 || @_ == 2 or croak "Usage: NOTFORK->version [(VERSION)]";
     my $obj = shift;
@@ -591,6 +602,7 @@ sub _unlock {
 sub get {
     @_ == 1 || @_ == 2 or croak "Usage: NOTFORK->get [(SKIP_UPDATE?)]";
     my ($obj, $noupdate) = @_;
+    $obj->{offline} and $noupdate = 1;
     my $vcs = $obj->{vcs};
     _check_cache_dir();
     my $vl = $obj->{verbose} && $obj->{verbose} > 2;
