@@ -63,8 +63,6 @@ arrow from Upstream1.s down 1.5cm then right 1 to MyProj.w rad 20px thick
 arrow from Upstream2.s down 1.5cm then left 1 to MyProj2.e rad 20px thick
 ```
 
-
-
 In more detail, the problem of project forking includes these cases:
 
 * Tracking multiple upstreams, each with a different release schedule and version control system. Manual merging is difficult, but failing to merge or only occasionally merging will often result in a hard fork. LumoSQL tracks [three upstreams](https://lumosql.org/src/lumosql/dir?ci=tip&name=not-fork.d) that differ in all these ways
@@ -125,14 +123,19 @@ perl -Iblib/lib bin/not-fork -idoc/examples [other_options] ...
 
 # Disambiguation of "Fork"
 
-Here are some meanings for the word "fork" that are nothing to do with Not-Forking:
+A whole-project fork is a big thing, such as when
+[LibreOffice](https://libreoffice.org) split off from
+[OpenOffice.org](https://openoffice.org), or [MariaDB](https://mariadb.org) from [MySQL](https://mysql.org).
+These were expected, planned and managed project forks and Not-forking is definitely not intended for this case. Not-forking is strictly about unintentional/reluctant project forks, or vendoring, as defined above.
 
-In Fossil, a "fork" is just a point where a linear branch of development
-splits into two linear branches by the same name.
+Here are some other meanings for the word "fork" that are nothing to do with Not-Forking:
 
-Unless I'm  mistaken, in Git,  a "fork" is something  entirely different
-and has nothing to  do with branching per se, but  is rather simply just
-another clone of the repository.
+* In Fossil, a "fork" is a point where a linear branch of development
+splits into two linear branches by the same name. [Fossil has a forking/branching document](https://fossil-scm.org/home/doc/trunk/www/branching.wiki) .
+
+* in Git,  a "fork" is just another clone of the repository.
+
+* GitHub uses the same definition as Git. As well as providing tools to identify and re-import changes made in the new clone, GitHub promotes forking repositories. As a result it is common for a project on GitHub to have dozens of forks/clones, and for a popular project there can be hundreds.
 
 
 
