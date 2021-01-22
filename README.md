@@ -14,49 +14,54 @@ project. This is something that is not handled by [version control systems](http
 Not-forking **avoids project-level forking** by largely automating change management in ways that 
 a version control system cannot.
 
-The following diagram represents the simplest case of the problem that Not-forking solves, where 
-some external piece of software, here called Upstream, forms a part of a new Combined Project.
-Upstream is not a library provided on your system, because then you could link to it. It is source
-code that you incorporate into Combined Project:
+The following diagram represents the simplest case of the problem that
+Not-forking solves, where some external piece of software, here called
+*Upstream*, forms a part of a new project called *Combined Project*.
+*Upstream* is not a library provided on your system, because then you could
+link to *libupstream*. It is source code that you copy into the *Combined Project*
+directory tree:
 
-``` pikchr
-Upstream: file "Upstream project" "file repository" fit rad 10px
-           file same rad 10px at 0.1cm right of Upstream
-           move ; move
-        
-MyProj:    file "Combined Project" "file repository" fit rad 10px with .n at Upstream.se+(0.5,-0.5)
-MyProj2:   file same rad 10px at 0.1cm right of MyProj
 
-arrow from Upstream.s down 1.5cm then right 1 to MyProj.w rad 20px thick
+``` pikchr indent toggle source-inline
+color=white
+Upstream: file "Upstream Project" "file repository" fit rad 10px fill black
+          file same rad 10px at 0.1cm right of Upstream fill none
+          move ; move
+
+MyProj:   file "Combined Project" "file repository" fit rad 10px with .n at Upstream.se+(0.5,-0.5) fill black
+MyProj2:  file same rad 10px at 0.1cm right of MyProj fill none
+
+arrow from Upstream.s down 1.5cm then right 1 to MyProj.w rad 20px thick color blue fill black
 ```
 
 Some questions immediately arise:
 
-* Should you import Upstream into your source code management system?
-* If Upstream makes modifications, how can you pull those modifications into Combined Project safely?
-* If Combined Project has changed files in Upstream, how can you then merge the changes and any new changes made in Upstream?
+* Should you import *Upstream* into your source code management system?
+* If *Upstream* makes modifications, how can you pull those modifications into *Combined Project* safely?
+* If *Combined Project* has changed files in *Upstream*, how can you then merge the changes and any new changes made in *Upstream*?
 
-This is how pressure arises to start maintaining Upstream code within the
-Combined Project tree, because it is just simpler. But that brings the very big
-problem of the Reluctant Project Fork. A Reluctant Project Fork, or vendoring
-as the [Debian Project](https://debian.org) calls it, is where Combined
-Project's version of Upstream starts to drift from the original Upstream. 
+This is how pressure arises to start maintaining *Upstream* project code within the
+*Combined Project* tree, because in the short term it is just simpler. But that brings the very big
+problem of the Reluctant Project Fork. A Reluctant Project Fork, or "vendoring"
+as the [Debian Project](https://debian.org) calls it, is where *Combined
+Project's* version of *Upstream* starts to drift from the original *Upstream*. 
 Nobody wants to maintain code that is currently being
 maintained by its original authors if it can be avoided, but it can become complicated
 to avoid that. Not-Forking makes this a much easier problem to solve.
 
 Not-forking addresses more complicated scenarios, such as when two
-unrelated projects are upstream of Combined Project:
+unrelated projects are upstream of *Combined Project*:
 
-``` pikchr
-Upstream1: file "Upstream 1" "files" fit rad 10px
+
+``` pikchr indent toggle source-inline
+Upstream1: file "Upstream 1" "repository" fit rad 10px
            file same rad 10px at 0.1cm right of Upstream1
            move ; move
-Upstream2: file "Upstream 2" "files" fit rad 10px
+Upstream2: file "Upstream 2" "repository" fit rad 10px
            file same rad 10px at 0.1cm right of Upstream2
            down
         
-MyProj:    file "Combined Project" "files" fit rad 10px with .n at Upstream1.se+(0.5,-0.5)
+MyProj:    file "Combined Project" "repository" fit rad 10px with .n at Upstream1.se+(0.5,-0.5)
 MyProj2:   file same rad 10px at 0.1cm right of MyProj
 
 arrow from Upstream1.s down 1.5cm then right 1 to MyProj.w rad 20px thick
