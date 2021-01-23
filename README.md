@@ -9,7 +9,9 @@
 # The Not-Forking Tool
 
 Not-forking avoids duplicating the source code of one project within another
-project. This is something that is not handled by [version control systems](https://en.wikipedia.org/wiki/Distributed_version_control) such as Fossil, Git, or GitHub. 
+project, where the projects are external to each other. This is something that is not handled by 
+[version control systems](https://en.wikipedia.org/wiki/Distributed_version_control) such as 
+[Fossil](https://fossil-scm.org), [Git](https://git-scm.org), or [GitHub](https://github.com).
 
 Not-forking **avoids project-level forking** by largely automating change management in ways that 
 a version control system cannot.
@@ -96,6 +98,12 @@ In more detail, the problem of project forking includes these cases:
 * [Vendoring](https://lwn.net/Articles/836911/), where a package copies a library or module into its own tree, avoiding the versioning problems that arise when using system-provided libraries. This then becomes a standalone fork until the next copy is done, which often involves a manual porting task. Not-Forking can stop this problem arising at all
 * Vendoring with version control, for example some of the [132 forks of LibVNC on GitHub](https://github.com/LibVNC/libvncserver/network/members) are for maintained, shipping products which are up to hundreds of commits behind the original. Seemingly they are manually synced with the original every year or two, but potentially Not-Forking could remove most of this manual work
 
+The following diagram indicates how more complex scenarios are managed with
+Not-Forking. Any of the version control systems could be swapped with any
+other, and production use of Not-Forking today handles up to 50 versions of
+three upstreams with ease. 
+
+
 ``` pikchr indent toggle source-inline
 // Diagram 3
 // Colours chosen for maximum visibility in all browsers, devices, light conditions and eyeballs
@@ -133,7 +141,7 @@ arrow from Make.s to NotFork.n rad 50px thick thick thick color red
 arrow from NotFork.s to Combined.n rad 50px thick thick thick color red
 ```
 
-# How to Get Not-Forking
+# Download and Install Not-Forking
 
 If you are reading this on Github, you are looking at a read-only mirror.
 The official home is the [Fossil repository](https://lumosql.org/src/not-forking),
@@ -199,7 +207,7 @@ ordinary-scale vendoring.
 
 Here are some other meanings for the word "fork" that are nothing to do with Not-Forking:
 
-* In Fossil, a "fork" is a point where a linear branch of development
+* In Fossil, a "fork" can be a point where a linear branch of development
 splits into two linear branches by the same name. [Fossil has a forking/branching document](https://fossil-scm.org/home/doc/trunk/www/branching.wiki) .
 
 * in Git,  a "fork" is just another clone of the repository.
