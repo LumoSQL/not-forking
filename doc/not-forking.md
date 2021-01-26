@@ -44,9 +44,6 @@ manufacturer. Not-forking reduces the maintenance of pulling many upstreams
 into the image, while still giving control over how this is done in the build
 process (eg by adding a product-specific version string to imported code.)
 
-The Not-forking mechanism is similar to applying patches, except patches need to
-be constantly updated as upstream sources changes.
-
 The overall effect is something like 
 [Fossil merge --cherry-pick](https://www.fossil-scm.org/fossil/help/merge)
 or [git-cherry-pick](https://git-scm.com/docs/git-cherry-pick)
@@ -56,6 +53,8 @@ except that it additionally copes with the messiness of software including:
 * code that is not maintained in the same git/Fossil repo
 * code that is not maintained in git, but is just patches or in some other VCS
 * custom processing that is needed to be run for a specific patch
+* code changes that are smarter than `patch`, for example `sed`-like global string
+  replace conditional on some other string in the file.
 * failing with an error asking for human intervention when there are major differences with upstream
 
 Each project tracked by not-forking needs to define what to track, and what
@@ -352,7 +351,7 @@ this directory may be overwritten or deleted by the tool
 - `-k`CACHE\_DIRECTORY (or `--cache=CACHE\_DIRECTORY`)
 is a place used by the program to keep downloads
 and working copies; it must be either a new (missing or empty) directory
-or a directory created by a orevious run of the tool; default is
+or a directory created by a previous run of the tool; default is
 `.cache/LumoSQL/not-fork` inside the user's home directory
 - `-v`VERSION (or `--version=`VERSION) will retrieve the specified VERSION
 of the next NAME (this option must be repeated for each NAME, in the
