@@ -27,7 +27,7 @@ directory tree like this:
 ``` pikchr indent toggle source-inline
 // Diagram 1
 // Colours chosen for maximum visibility in all browsers, devices, light conditions and eyeballs
-// given the limitations of Pikchr, which is in turn limited by SVG being rendered independent of CSS
+// given the limitations of pikchr.org, which is in turn limited by SVG being rendered independent of CSS
 color=white
 DiagramFrame: [
 
@@ -74,7 +74,7 @@ unrelated projects are upstream of *Combined Project*:
 ``` pikchr indent toggle source-inline
 // Diagram 2
 // Colours chosen for maximum visibility in all browsers, devices, light conditions and eyeballs
-// given the limitations of Pikchr, which is in turn limited by SVG being rendered independent of CSS
+// given the limitations of pikchr.org, which is in turn limited by SVG being rendered independent of CSS
 color=white
 DiagramFrame: [
 
@@ -123,7 +123,7 @@ three upstreams with ease.
 ``` pikchr indent toggle source-inline
 // Diagram 3
 // Colours chosen for maximum visibility in all browsers, devices, light conditions and eyeballs
-// given the limitations of Pikchr, which is in turn limited by SVG being rendered independent of CSS
+// given the limitations of pikchr.org, which is in turn limited by SVG being rendered independent of CSS
 DiagramFrame: [
 
 scale=0.8
