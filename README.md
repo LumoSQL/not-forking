@@ -104,7 +104,7 @@ arrow from Make.s to NotFork.n rad 50px thick thick thick color red
 arrow from NotFork.s to Combined.n rad 50px thick thick thick color red
 ]
 
-DiagramCaption: box "Diagram 2: Not-Forking With Two Upstreams" italic bold fit height 200% with .n at 0.2cm below DiagramFrame.s color orange invisible
+DiagramCaption: box "Diagram 2: Not-Forking With Two Upstreams" big bold italic fit height 200% with .n at 0.2cm below DiagramFrame.s color orange invisible
 ```
 
 In more detail, the problem of project forking includes these cases:
@@ -159,7 +159,7 @@ arrow from Make.s to NotFork.n rad 50px thick thick thick color red
 arrow from NotFork.s to Combined.n rad 50px thick thick thick color red
 ]
 
-DiagramCaption: box "Diagram 3: Not-Forking With Multiple Versions and Multiple Upstreams" italic bold fit height 200% with .n at 0.2cm below DiagramFrame.s color orange invisible
+DiagramCaption: box "Diagram 3: Not-Forking With Multiple Versions and Multiple Upstreams" big bold italic fit height 200% with .n at 0.2cm below DiagramFrame.s color orange invisible
 
 ```
 
