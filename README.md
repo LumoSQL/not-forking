@@ -9,18 +9,17 @@
 # The Not-Forking Tool
 
 Not-forking avoids duplicating the source code of one project within another
-project, where the projects are external to each other. This is something that is not handled by 
-[version control systems](https://en.wikipedia.org/wiki/Distributed_version_control) such as 
-[Fossil](https://fossil-scm.org), [Git](https://git-scm.org), or [GitHub](https://github.com).
+project, where the projects are external to each other. 
 
 Not-forking **avoids project-level forking** by largely automating change management in ways that 
-a version control system cannot.
+[version control systems](https://en.wikipedia.org/wiki/Distributed_version_control) such as 
+[Fossil](https://fossil-scm.org), [Git](https://git-scm.org), or [GitHub](https://github.com) cannot.
 
-The following diagram represents the simplest case of the problem that
-Not-forking solves, where some external piece of software, here called
+This following diagram shows the simplest case of the problem Not-Forking solves. 
+An external piece of software, here called
 *Upstream*, forms a part of a new project called *Combined Project*.
 *Upstream* is not a library provided on your system, because then you could simply
-link to *libupstream*. Instead, it is source code that you copy into the *Combined Project*
+link to *libupstream*. Instead, *Upstream* is source code that you copy into the *Combined Project*
 directory tree like this:
 
 
@@ -57,17 +56,17 @@ Some questions immediately arise:
 * If *Combined Project* has changed files in *Upstream*, how can you then merge
   the changes and any new changes made in *Upstream*?
 
-This is how pressure arises to separate *Upstream* project code from its
+The developer now has good reasons to separate *Upstream* project code from its
 repository and maintain it within the *Combined Project* tree, because in the
 short term it is just simpler. But that brings the very big problem of the
 Reluctant Project Fork. A Reluctant Project Fork, or "vendoring" as the [Debian
 Project](https://debian.org) calls it, is where *Combined Project's* version of
 *Upstream* starts to drift from the original *Upstream*.  Nobody wants to
-maintain code that is currently being maintained by its original authors if it
-can be avoided, but it can become complicated to avoid that. Not-Forking makes
+maintain code that is currently being maintained by its original authors,
+but it can become complicated to avoid that. Not-Forking makes
 this a much easier problem to solve.
 
-Not-forking addresses more complicated scenarios, such as when two
+Not-forking also addresses more complicated scenarios, such as when two
 unrelated projects are upstream of *Combined Project*:
 
 
@@ -114,7 +113,7 @@ In more detail, the problem of project forking includes these cases:
 * [Vendoring](https://lwn.net/Articles/836911/), where a package copies a library or module into its own tree, avoiding the versioning problems that arise when using system-provided libraries. This then becomes a standalone fork until the next copy is done, which often involves a manual porting task. Not-Forking can stop this problem arising at all
 * Vendoring with version control, for example some of the [132 forks of LibVNC on GitHub](https://github.com/LibVNC/libvncserver/network/members) are for maintained, shipping products which are up to hundreds of commits behind the original. Seemingly they are manually synced with the original every year or two, but potentially Not-Forking could remove most of this manual work
 
-The following diagram indicates how more complex scenarios are managed with
+The following diagram indicates how even more complex scenarios are managed with
 Not-Forking. Any of the version control systems could be swapped with any
 other, and production use of Not-Forking today handles up to 50 versions of
 three upstreams with ease. 
