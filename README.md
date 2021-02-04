@@ -224,7 +224,7 @@ tangles.
 Examples of the sorts of actions Not-Forking can take:
 
 * check for new versions of all upstreams, doing comparisons of the
-  human-readable release numbers rather than repo checkins or tags, where
+  human-readable release numbers/letters rather than repo checkins or tags, where
   human-readable version numbers vary widely in their construction
 * replace foo.c with bar.c in all cases (perhaps because we want to replace a
   library that has an identical API with a safer implementation)
@@ -243,26 +243,27 @@ Examples of the sorts of actions Not-Forking can take:
 # Disambiguation of "Fork"
 
 The term "fork" has several meanings. Not-Forking is addressing only one
-meaning: when source code maintained elsewhere is modified locally, creating
-the problem of how to maintain the modifications without also maintaining the
-entire original codebase. 
+meaning: when source code maintained *by other people elsewhere* is modified 
+*by you locally*. This creates the problem of how to maintain your modifications
+without also maintaining the entire original codebase. 
 
-A permanent whole-project fork tends to be a large and rare, such as when
-[LibreOffice](https://libreoffice.org) split off from
+Not-Forking is not intended for permanent whole-project forks. These tend to be large
+and rare events, such as when [LibreOffice](https://libreoffice.org) split off from
 [OpenOffice.org](https://openoffice.org), or [MariaDB](https://mariadb.org)
 from [MySQL](https://mysql.org).  These were expected, planned and managed
-project forks. Not-forking is definitely not intended for this case. Another
-example was decided by Debian on 20th January 2021 regarding extreme vendoring, where the upstream is 
-[vast, motivated and funded](https://lwn.net/ml/debian-ctte/handler.971515.D971515.16111708995535.ackdone@bugs.debian.org/)
-and provides a guarantee that it will maintain all of its own upstreams.
+project forks.
 
-Not-forking is strictly about unintentional/reluctant project forks, or
+Not-Forking is not intended for extreme vendoring either, as in the case decided by Debian in January 2021,
+where the up stream is [giant and well-funded](https://lwn.net/ml/debian-ctte/handler.971515.D971515.16111708995535.ackdone@bugs.debian.org/)
+and guarantees it will maintain all of its own upstreams.
+
+Not-forking is strictly about unintentional/reluctant whole-project forks, or
 ordinary-scale vendoring.
 
 Here are some other meanings for the word "fork" that are nothing to do with Not-Forking:
 
 * In Fossil, a "fork" can be a point where a linear branch of development
-splits into two linear branches by the same name.
+splits into two linear branches which have the same name.
 [Fossil has a discussion on forking/branching](https://fossil-scm.org/home/doc/trunk/www/branching.wiki) .
 
 * in Git,  a "fork" is just another clone of the repository.
