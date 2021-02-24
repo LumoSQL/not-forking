@@ -198,7 +198,7 @@ my %required_keys_mod = (
 );
 
 my %condition_keys_mod = (
-    version => \&_check_version, # XXX need to write this sub
+    version => \&_check_version,
 );
 
 sub _load_config {
@@ -268,7 +268,9 @@ sub load_file {
 	    $if = undef;
 	    $ifval = 1;
 	} elsif ($ifval) {
-	    $line =~ s/^=\s*// or die "$sf.$.: Invalid line format for $kw: [$line]\n";
+	    exists $options->{condition}{$kw}
+		or $line =~ s/^=\s*//
+		or die "$sf.$.: Invalid line format for $kw: [$line]\n";
 	    $hash->{$kw} = $line;
 	}
     }
@@ -279,7 +281,7 @@ sub load_file {
 	for my $ck (keys %$condition) {
 	    exists $hash->{$ck} or next;
 	    my $code = $condition->{$ck};
-	    $code->($data, $hash->{$ck}, $hash, $sf) or return 0;
+	    $code->($data, $ck, $hash->{$ck}, $hash, $sf) or return 0;
 	}
     }
     if (exists $options->{required}) {
@@ -339,6 +341,21 @@ sub _load_method {
     $@ and die "$mf: $@";
     $mobj->load_data($mf, $fh);
     $hash->{method} = $mobj;
+}
+
+sub _check_version {
+    my ($data, $key, $value, $hash, $sf) = @_;
+    my $orig = $value;
+    my $ok = 1;
+    my $convert = _convert_function('version');
+    my $have = $convert->($data->{version});
+    while ($value =~ s/^(==?|!=|>=?)\s*(\S+)\s*//) {
+	my $op = $1;
+	my $need = $convert->($2);
+	_cmp_version($op, $have, $need) or $ok = 0;
+    }
+    $value eq "" or die "Invalid value for $key: \"$orig\" (extra \"$value\" at end)\n";
+    return $ok;
 }
 
 # convert "op" to a comparison

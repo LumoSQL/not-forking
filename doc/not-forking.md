@@ -222,24 +222,28 @@ are ignored, but files in there can be referenced by the `.mod` files.
 
 The contents of each modification definition file are an initial part with
 format similar to the Upstream definition file described above ("key = value"
-pair, possibly with conditional blocks); this initial part ends with a line
-containing just dashes and the rest of the file, referred to as "final
+pair, possibly with conditional blocks and conditions on the applicability
+of the whole file, which have a special format); this initial part ends with
+a line containing just dashes and the rest of the file, referred to as "final
 part", is interpreted based on information from the initial part.
 
-The following keys are currently understood:
+The following conditional is currently understood:
 
-- `version`: the value has the same format as the condition on the
-`if version` specification in the Upstream definition file: one or two
-strings separated by whitespace, one of the strings starting with `<`
-or `<=` and the other starting with `>` or `>=` to indicate a maximum,
-minimum or range of versions.  One use of this key is to indicate that
-a modification is only necessary up to a particular version, because
-for example that modification has been accepted by upstream and is
-no longer necessary.  Another use of this key is to identify versions
-in which substantial upstream changes make it difficult to specify a
-modification which works for every possible version. Specifying this
-keyword is essentially equivalent to put the whole `.mod` file in
-a conditional.
+- `version`: followed by a list of "comparisons" consisting of a
+relational operator (`=`, `!=`, `<`, `<=`, `>`, `>=`) followed by a
+value, the condition will be true if all the comparisons between the
+version being extracted and the values provided are true, for example:
+`version > 1 <= 2` would be true when extracting versions 1.1 or 2 but
+not when extracting version 1; one use of this key is to indicate that
+a modification is only necessary up to a particular version, because for
+example that modification has been accepted by upstream and is no longer
+necessary; another use of this key is to identify versions in which
+substantial upstream changes make it difficult to specify a modification
+which works for every possible version. Specifying this keyword is
+essentially equivalent to put the whole `.mod` file in a conditional.
+
+The following key is currently understood:
+
 - `method`; the method used to specify the modification; currently, the
 value can be one of: `patch`, indicating that the final part of the file is
 in a format suitable for passing as standard input to the "patch" program;
