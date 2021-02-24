@@ -14,6 +14,7 @@ project, where the projects are external to each other.
 Not-forking **avoids project-level forking** by largely automating change management in ways that 
 [version control systems](https://en.wikipedia.org/wiki/Distributed_version_control) such as 
 [Fossil](https://fossil-scm.org), [Git](https://git-scm.org), or [GitHub](https://github.com) cannot.
+The [full documentation](doc/not-forking.md) goes into much more detail than this overview.
 
 This following diagram shows the simplest case of the problem Not-Forking solves. 
 An external piece of software, here called
