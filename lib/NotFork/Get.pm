@@ -405,6 +405,7 @@ sub _convert_function {
 }
 
 sub _convert_version {
+    defined $_[0] or return '';
     my $vn = lc($_[0]);
     my $suffix = '';
     if ($vn =~ s/-alpha$//) {
