@@ -165,6 +165,8 @@ DiagramCaption: box "Diagram 3: Not-Forking With Multiple Versions and Multiple 
 
 # Download and Install Not-Forking
 
+You can download Not-Forking via wget, Fossil, or git.
+
 If you are reading this on Github, you are looking at a read-only mirror.
 The official home is the [Fossil repository](https://lumosql.org/src/not-forking),
 and that is the best way to contribute and interact with the community. You 
@@ -174,12 +176,19 @@ Here you will find the tool and its libraries, and the [full documentation](doc/
 It also contains an example configuration (in directory doc/examples) which can
 be used for testing.
 
-To install the tool:
+You can use `fossil clone` or `git clone`, or,  to download with wget:
+
+```
+wget -O- https://lumosql.org/src/not-forking/tarball/trunk/Not-forking-trunk.tar.gz | tar -zxf -
+cd Not-forking-trunk
+```
+
+Once you have downloaded the Not-Forking source, you can install it using:
 
 ```
 perl Makefile.PL
 make
-make install     <== you will likely need root for this
+sudo make install       # You need root for this step, via sudo or otherwise
 ```
 
 At which point the `not-fork` command is installed in the system and its
