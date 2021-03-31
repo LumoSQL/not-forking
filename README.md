@@ -176,7 +176,14 @@ Here you will find the tool and its libraries, and the [full documentation](doc/
 It also contains an example configuration (in directory doc/examples) which can
 be used for testing.
 
-You can use `fossil clone` or `git clone`, or,  to download with wget:
+The Perl module Text::Glob is needed. Many operating systems package it under the name libtext-glob-perl.
+For example, on Debian or Ubuntu systems, type:
+
+```
+sudo apt install libtext-glob-perl
+```
+
+To download, you can use `fossil clone` or `git clone`, or,  to download with wget:
 
 ```
 wget -O- https://lumosql.org/src/not-forking/tarball/trunk/Not-forking-trunk.tar.gz | tar -zxf -
