@@ -29,16 +29,38 @@ sub get {
     my $verbose = $obj->{verbose};
     my $fossil_db = $fossil;
     $fossil_db =~ s|/[^/]*$|/db|;
+    my $repo_ok = 0;
     if (-f $fossil_db && -d $fossil) {
 	# assume we have already cloned
-	my $url = _fossil_get($fossil, 'remote');
-	$url eq $obj->{repos}
-	    or die "Inconsistent cache: $url // $obj->{repos}\n";
-	if (! $noupdate) {
-	    $verbose > 1 and print "Updating $obj->{name} in $fossil\n";
-	    _fossil($fossil, 'pull', @{$obj->{fossil_args}});
+	my $url = _fossil_get($fossil, 1, 'remote');
+	if (! defined $url || $url eq '') {
+	    # could be an incomplete open, so try doing another one
+	    unlink("$fossil/.fslckout");
+	    eval {
+		_fossil($fossil, 'open', $fossil_db);
+		$url = _fossil_get($fossil, 0, 'remote');
+	    };
+	    if ($@) {
+		print STDERR "Error from fossil:\n$@";
+		print STDERR "This probably means that a previous clone has failed\n";
+		print STDERR "Trying to repeat the clone\n";
+		unlink($fossil_db);
+		rmdir($fossil); # this may fail if it's nonempty, so...
+		rename($fossil, "$fossil.failed");
+		# we could use File::Path to nuke it as well
+	    }
 	}
-    } else {
+	if (defined $url && $url ne '') {
+	    $url eq $obj->{repos}
+		or die "Inconsistent cache: $url // $obj->{repos}\n";
+	    if (! $noupdate) {
+		$verbose > 1 and print "Updating $obj->{name} in $fossil\n";
+		_fossil($fossil, 'pull', @{$obj->{fossil_args}});
+	    }
+	    $repo_ok = 1;
+	}
+    }
+    if (! $repo_ok) {
 	# need to clone into $fossil_src
 	$obj->{offline}
 	    and die "Would need to clone $obj->{repos}\nProhibited by --offline\n";
@@ -71,7 +93,7 @@ sub list_files {
     my ($obj, $subtree, $call) = @_;
     exists $obj->{fossil} or croak "Need to call FOSSIL->get before list_files";
     my $fossil = $obj->{fossil};
-    my $fh = _fossil_read($fossil, 'ls');
+    my $fh = _fossil_read($fossil, 0, 'ls');
     $obj->_list_files($fh, $fossil, 0, $subtree, $call);
     # this does not include files like "manifest" so we look for them specially
     for my $sf (qw(manifest manifest.tags manifest.uuid)) {
@@ -104,7 +126,7 @@ sub all_versions {
     my ($obj) = @_;
     exists $obj->{fossil} or croak "Need to call FOSSIL->get before version";
     my $fossil = $obj->{fossil};
-    my $fh = _fossil_read($fossil, 'tag', 'ls');
+    my $fh = _fossil_read($fossil, 0, 'tag', 'ls');
     my @versions = $obj->_all_versions($fh, '', '');
     _fossil_close($fh);
     @versions;
@@ -121,7 +143,7 @@ sub version {
     # get a checkout ID and maybe a tag from "fossil status"
     my $commit_id = undef;
     my $version = undef;
-    my $fh = _fossil_read($fossil, 'status');
+    my $fh = _fossil_read($fossil, 0, 'status');
     while (defined (my $rl = <$fh>)) {
 	$rl =~ /^checkout:\s*(\S+)\b/ and $commit_id = $1;
 	$rl =~ s/^tags:\s*\b// or next;
@@ -145,7 +167,7 @@ sub info {
     if (exists $obj->{fossil}) {
 	my $fossil = $obj->{fossil};
 	print $fh "Information for $name:\n";
-	print $fh "url = ", _fossil_get($fossil, 'remote'), "\n";
+	print $fh "url = ", _fossil_get($fossil, 0, 'remote'), "\n";
 	my ($version, $commit_id) = $obj->version;
 	defined $version and print $fh "version = $version\n";
 	defined $commit_id and print $fh "commit_id = $commit_id\n";
@@ -173,12 +195,13 @@ sub _fossil {
 }
 
 sub _fossil_read {
-    my ($dir, @cmd) = @_;
+    my ($dir, $ignore_error, @cmd) = @_;
     my $fh;
     my $pid = open($fh, '-|');
     defined $pid or die "Cannot fork: $!\n";
     if (! $pid) {
 	chdir $dir or die "$dir: $!\n";
+	$ignore_error and open(STDERR, '>', '/dev/null');
 	exec 'fossil', @cmd
 	    or die "exec fossil: $!\n";
     }
@@ -194,10 +217,12 @@ sub _fossil_close {
 }
 
 sub _fossil_get {
-    my $fh = _fossil_read(@_);
+    my ($dir, $ignore_error, @cmd) = @_;
+    my $fh = _fossil_read($dir, $ignore_error, @cmd);
     local $/ = undef;
     my $res = <$fh>;
-    _fossil_close($fh);
+    eval { _fossil_close($fh); };
+    $@ && ! $ignore_error and die $@;
     defined $res and $res =~ s/\n+$//;
     return $res;
 }
