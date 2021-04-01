@@ -379,6 +379,7 @@ sub _cmp_version {
 	$op eq '>' || $op eq '>=' and return 1;
 	return 0;
     }
+    defined $val or $val = '';
     # otherwise convert version number and compare
     my $convert = _convert_function($override);
     my $ch = $convert->($have);
@@ -405,7 +406,7 @@ sub _convert_function {
 }
 
 sub _convert_version {
-    defined $_[0] or return '';
+    defined $_[0] or return undef;
     my $vn = lc($_[0]);
     my $suffix = '';
     if ($vn =~ s/-alpha$//) {
