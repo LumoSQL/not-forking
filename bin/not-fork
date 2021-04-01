@@ -192,7 +192,7 @@ sub list_prereq {
     for my $name (@prereq) {
 	my ($ok, $version) = @{$prereq{$name}};
 	$ok && $verbose < 1 and next;
-	$maxv < length($version) and $maxv = length($version);
+	defined $version && $maxv < length($version) and $maxv = length($version);
     }
     for my $name (@prereq) {
 	my ($ok, $version) = @{$prereq{$name}};
