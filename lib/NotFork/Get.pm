@@ -12,6 +12,7 @@ use strict;
 use version;
 require Exporter;
 use Carp;
+use Config ();
 use Digest::SHA qw(sha512_hex);
 use File::Path qw(make_path remove_tree);
 use File::Find qw(find);
@@ -169,10 +170,12 @@ sub new {
     @_ == 4 or croak "Usage: new NotFork::Get(NAME, VERSION, COMMIT_ID)";
     my ($class, $name, $version, $commit) = @_;
     _check_input_name($name);
+    (my $osname = $Config::Config{myarchname}) =~ s/^.*-//;
     my $obj = bless {
 	name    => $name,
 	verbose => 1,
 	offline => 0,
+	osname  => $osname,
     }, $class;
     defined $version and $obj->version($version);
     defined $commit and $obj->commit($commit);
@@ -185,10 +188,6 @@ sub DESTROY {
     $obj->{vcslock} and _unlock($obj->{vcslock});
 }
 
-my %if_conditions = (
-    version => ['version', \&_cmp_version, 'compare'],
-);
-
 my %required_keys_upstream = (
     vcs => \&_load_vcs,
 );
@@ -197,8 +196,10 @@ my %required_keys_mod = (
     method => \&_load_method,
 );
 
-my %condition_keys_mod = (
+my %condition_keys = (
     version => \&_check_version,
+    osname  => \&_check_values,
+    hasfile => \&_check_hasfile,
 );
 
 sub _load_config {
@@ -223,7 +224,7 @@ sub load_file {
     my $if = undef;
     my $ifval = 1;
     my $stop = defined $options ? $options->{stop} : undef;
-    my %conditionals;
+    my @version_cond;
     while (defined (my $line = <$fh>)) {
 	defined $stop && $stop->($line) and last;
 	$line =~ /^\s*$/ and next;
@@ -241,22 +242,10 @@ sub load_file {
 	if ($kw eq 'if') {
 	    $line =~ s/^(\S+)\s*// or die "$sf.$.: Invalid line format for $kw: [$line]\n";
 	    my $item = lc($1);
-	    exists $if_conditions{$item} or die "$sf.$.: Invalid item ($item)\n";
-	    my ($element, $compare, $override) = @{$if_conditions{$item}};
-	    my $have = $data->{$element};
-	    if (defined $override && exists $hash->{$override}) {
-		$override = $hash->{$override};
-	    } else {
-		$override = undef;
-	    }
-	    $ifval = 1;
-	    while ($line ne '') {
-		$line =~ s/^(<=|<|=|>=|>)\s*(\S+)\s*//
-		    or die "$sf.$.: Invalid operand for $kw $item: [$line]\n";
-		my ($op, $val) = ($1, $2);
-		$compare->($op, $have, $val, $override) or $ifval = 0;
-		push @{$conditionals{$element}}, [$op, $val];
-	    }
+	    exists $condition_keys{$item} or die "$sf.$.: Invalid item ($item)\n";
+	    my $code = $condition_keys{$item};
+	    my $have = $data->{$item};
+	    $ifval = $code->($data, $item, $line, \@version_cond);
 	    $if = 0;
 	} elsif ($kw eq 'else') {
 	    defined $if or die "$sf.$.: $kw outside conditional\n";
@@ -274,14 +263,14 @@ sub load_file {
 	    $hash->{$kw} = $line;
 	}
     }
-    $hash->{_conditionals} = \%conditionals;
+    $hash->{_version_cond} = \@version_cond;
     defined $options or return 1;
     if (exists $options->{condition}) {
 	my $condition = $options->{condition};
 	for my $ck (keys %$condition) {
 	    exists $hash->{$ck} or next;
 	    my $code = $condition->{$ck};
-	    $code->($data, $ck, $hash->{$ck}, $hash, $sf) or return 0;
+	    $code->($data, $ck, $hash->{$ck}) or return 0;
 	}
     }
     if (exists $options->{required}) {
@@ -310,7 +299,7 @@ sub _load_modfile {
     my %kw = ();
     my $keep = load_file($fh, $mf, $obj, \%kw, {
 	required => \%required_keys_mod,
-	condition => \%condition_keys_mod,
+	condition => \%condition_keys,
 	stop => sub { $_[0] =~ /^-+$/ },
     });
     close $fh;
@@ -343,16 +332,54 @@ sub _load_method {
     $hash->{method} = $mobj;
 }
 
+# process "version" conditions in a mod file or upstream file
 sub _check_version {
-    my ($data, $key, $value, $hash, $sf) = @_;
+    my ($data, $key, $value, $cond_list) = @_;
     my $orig = $value;
     my $ok = 1;
-    my $convert = _convert_function('version');
+    my $convert = _convert_function('version', $data->{compare});
     my $have = $convert->($data->{version});
-    while ($value =~ s/^(==?|!=|>=?)\s*(\S+)\s*//) {
+    while ($value =~ s/^(==?|!=|>=?|<=?)\s*(\S+)\s*//) {
 	my $op = $1;
 	my $need = $convert->($2);
-	_cmp_version($op, $have, $need) or $ok = 0;
+	$cond_list and push @$cond_list, [$op, $2, $need];
+	if (defined $have) {
+	    _cmp($op, $have, $need) or $ok = 0;
+	} else {
+	    # if no version was provided, it means "latest"
+	    $op eq '>' || $op eq '>=' or $ok = 0;
+	}
+    }
+    $value eq "" or die "Invalid value for $key: \"$orig\" (extra \"$value\" at end)\n";
+    return $ok;
+}
+
+# process "osname" and similar conditions in a mod file or upstream file
+sub _check_values {
+    my ($data, $key, $value) = @_;
+    my $orig = $value;
+    my $ok = 1;
+    my $have = $data->{$key};
+    defined $have or $have = '';
+    while ($value =~ s/^(==?|!=)\s*(\S+)\s*//) {
+	my $op = $1;
+	my $need = $2;
+	_cmp($op, $have, $need) or $ok = 0;
+    }
+    $value eq "" or die "Invalid value for $key: \"$orig\" (extra \"$value\" at end)\n";
+    return $ok;
+}
+
+# process "file" conditions in a mod file or upstream file
+sub _check_hasfile {
+    my ($data, $key, $value) = @_;
+    my $orig = $value;
+    my $ok = 1;
+    while ($value =~ s|^(!?)\s*(/\S+)\s*||) {
+	my $want = ($1 eq '') || 0;
+	my $name = $2;
+	my $have = (($name =~ s|/$||) ? (-d $name) : (-f $name)) || 0;
+	$want == $have or $ok = 0;
     }
     $value eq "" or die "Invalid value for $key: \"$orig\" (extra \"$value\" at end)\n";
     return $ok;
@@ -361,7 +388,7 @@ sub _check_version {
 # convert "op" to a comparison
 sub _cmp {
     my ($op, $ch, $cv) = @_;
-    $op eq '=' and return $ch eq $cv;
+    $op eq '=' || $op eq '==' and return $ch eq $cv;
     $op eq '!=' and return $ch ne $cv;
     $op eq '>' and return $ch gt $cv;
     $op eq '>=' and return $ch ge $cv;
@@ -369,22 +396,6 @@ sub _cmp {
     $op eq '<=' and return $ch le $cv;
     # why did we end up here?
     undef;
-}
-
-# determine if version is within range
-sub _cmp_version {
-    my ($op, $have, $val, $override) = @_;
-    # if no version was requested, it means latest
-    if (! defined $have) {
-	$op eq '>' || $op eq '>=' and return 1;
-	return 0;
-    }
-    defined $val or $val = '';
-    # otherwise convert version number and compare
-    my $convert = _convert_function($override);
-    my $ch = $convert->($have);
-    my $cv = $convert->($val);
-    return _cmp($op, $ch, $cv);
 }
 
 sub version_convert {
@@ -675,8 +686,8 @@ sub all_versions {
     my $convert = _convert_function($obj->{kw}{compare});
     # get list of conditionals on version seen when loading the upstream file
     my @cond = sort {
-	$convert->($a->[1]) cmp $convert->($b->[1]) or $a->[0] cmp $a->[1]
-    } @{$obj->{kw}{_conditionals}{version}};
+	$a->[2] cmp $b->[2] or $a->[0] cmp $a->[1]
+    } @{$obj->{kw}{_version_cond}};
     my @v;
     if (@cond) {
 	# there's a conditional on versions, so things may need multiple
@@ -695,7 +706,7 @@ sub all_versions {
 		my ($ver) = @_;
 		my $o = $class->new($obj->{name}, $ver, undef);
 		# the "get" call will fail if it points to a cache item
-		# we've already locked; and but this is OK as we've already
+		# we've already locked; but this is OK as we've already
 		# had the list in that case
 		$o->{version} = $ver;
 		$o->{_nolock} = 1;
@@ -706,8 +717,7 @@ sub all_versions {
 	$add_versions->($obj);
 	my $prev = ['', ''];
 	for my $vp (@cond) {
-	    my ($op, $ver) = @$vp;
-	    my $cv = $convert->($ver);
+	    my ($op, $ver, $cv) = @$vp;
 	    $op eq $prev->[0] && $ver eq $prev->[1] and next;
 	    $get_add_versions->($ver);
 	    (my $nv = $ver) =~ s/(\d+)(\D*)$/($1 - 1) . $2/e;
@@ -723,18 +733,14 @@ sub all_versions {
     if ($obj->{kw}{version_filter}) {
 	# some versions are excluded, for whatever reason, so trim the list
 	my $line = $obj->{kw}{version_filter};
-	my ($element, $compare, $override) = @{$if_conditions{version}};
-	if (defined $override && exists $obj->{kw}{$override}) {
-	    $override = $obj->{kw}{$override};
-	} else {
-	    $override = undef;
+	while ($line =~ s/^(==?|!=|>=?|<=?)\s*(\S+)\s*//) {
+	    my $op = $1;
+	    my $need = $convert->($2);
+	    @v = grep { _cmp($op, $convert->($_), $need) } @v;
 	}
-	while ($line ne '') {
-	    $line =~ s/^(<=|<|=|>=|>|!=|!=)\s*(\S+)\s*//
-		or die "Invalid operand for version_filter [$line]\n";
-	    my ($op, $val) = ($1, $2);
-	    @v = grep { $compare->($op, $_, $val, $override) } @v;
-	}
+	$line eq ""
+	    or die "Invalid operand for version_filter \"$obj->{kw}{version_filter}\" "
+		 . "(extra \"$line\" at end)\n";
     }
     $obj->{all_versions} = \@v;
     return @v;

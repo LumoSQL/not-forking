@@ -27,7 +27,7 @@ use Getopt::Long qw(GetOptions GetOptionsFromArray);
 
 use NotFork::Get qw(set_input set_cache set_output all_names version_atleast recommend);
 
-our $VERSION = '0.3.3';
+our $VERSION = '0.3.4';
 
 Getopt::Long::Configure("bundling");
 
