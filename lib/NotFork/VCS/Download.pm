@@ -130,23 +130,25 @@ sub set_version {
 	    -f $dstfile or die "$cmd[0] failed to download $url\n";
 	}
 	# now determine what file type we are looking at
-	my @pipe = ();
-	my $type = _file_type($dstfile, @pipe);
+	my @extract_pipe = ();
+	my $type = _file_type($dstfile, @extract_pipe);
 	while ($type =~ /^(\S+)\s*compress/) {
 	    my $cp = $1;
 	    if ($cp eq 'gzip') {
-		push @pipe, 'gzip -dc';
+		push @extract_pipe, 'gzip -dc';
 	    } elsif ($cp eq 'bzip2') {
-		push @pipe, 'bzip2 -dc';
+		push @extract_pipe, 'bzip2 -dc';
 	    } elsif ($cp eq 'XZ') {
-		push @pipe, 'xz -dc';
+		push @extract_pipe, 'xz -dc';
 	    } else {
 		die "Don't know how to uncompress \"$cp\"\n";
 	    }
-	    $type = _file_type($dstfile, @pipe);
+	    $type = _file_type($dstfile, @extract_pipe);
 	}
+	my @ls_pipe = @extract_pipe;
 	if ($type =~ /\btar\b.*\barchive/i) {
-	    push @pipe, 'tar xvf - > "$IDXFILE"';
+	    push @ls_pipe, 'tar -tf - > "$IDXFILE"';
+	    push @extract_pipe, 'tar -xf -';
 	} else {
 	    die "Don't know how to unpack \"$type\"\n";
 	}
@@ -154,9 +156,16 @@ sub set_version {
 	local $ENV{SRCFILE} = $dstfile;
 	local $ENV{IDXFILE} = $dstidx;
 	local $ENV{DSTDIR} = $dstdir;
-	my $pipe = join(' | ', 'cd "$DSTDIR"; cat "$SRCFILE"', @pipe);
+	my $extract_pipe = join(' | ', 'cd "$DSTDIR"; cat "$SRCFILE"', @extract_pipe);
 	$obj->{verbose} > 1 and print "Unpacking $obj->{name} $version...\n";
-	if (system($pipe) != 0) {
+	if (system($extract_pipe) != 0) {
+	    $? == -1 and die "Cannot unpack $dstfile\n";
+	    $? & 0x7f and die "unpack died with signal " . ($? & 0x7f) . "\n";
+	    die "unpack exited with status " . ($? >> 8) . "\n";
+	}
+	my $ls_pipe = join(' | ', 'cd "$DSTDIR"; cat "$SRCFILE"', @ls_pipe);
+	$obj->{verbose} > 1 and print "Updating content list for $obj->{name} $version...\n";
+	if (system($ls_pipe) != 0) {
 	    $? == -1 and die "Cannot unpack $dstfile\n";
 	    $? & 0x7f and die "unpack died with signal " . ($? & 0x7f) . "\n";
 	    die "unpack exited with status " . ($? >> 8) . "\n";
