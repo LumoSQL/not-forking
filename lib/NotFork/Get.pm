@@ -223,6 +223,7 @@ sub load_file {
     my ($fh, $sf, $data, $hash, $options) = @_;
     my $if = undef;
     my $ifval = 1;
+    my $beentrue = 0;
     my $stop = defined $options ? $options->{stop} : undef;
     my @version_cond;
     while (defined (my $line = <$fh>)) {
@@ -240,17 +241,28 @@ sub load_file {
 	$line =~ s/^\s*(\S+)\s*// or die "$sf.$.: Invalid line format: [$line]\n";
 	my $kw = lc($1);
 	if ($kw eq 'if') {
+	    defined $if and die "$sf.$.: conditional nesting not (yet) allowed\n";
 	    $line =~ s/^(\S+)\s*// or die "$sf.$.: Invalid line format for $kw: [$line]\n";
 	    my $item = lc($1);
 	    exists $condition_keys{$item} or die "$sf.$.: Invalid item ($item)\n";
 	    my $code = $condition_keys{$item};
 	    my $have = $data->{$item};
 	    $ifval = $code->($data, $item, $line, \@version_cond);
+	    $beentrue = $ifval;
 	    $if = 0;
+	} elsif ($kw eq 'elseif' || $kw eq 'elsif') {
+	    defined $if or die "$sf.$.: $kw outside conditional\n";
+	    $if and die "$sf.$.: $kw follows else (lines $if and $.)\n";
+	    $line =~ s/^(\S+)\s*// or die "$sf.$.: Invalid line format for $kw: [$line]\n";
+	    my $item = lc($1);
+	    exists $condition_keys{$item} or die "$sf.$.: Invalid item ($item)\n";
+	    my $code = $condition_keys{$item};
+	    my $have = $data->{$item};
+	    $ifval = ! $beentrue && $code->($data, $item, $line, \@version_cond);
 	} elsif ($kw eq 'else') {
 	    defined $if or die "$sf.$.: $kw outside conditional\n";
 	    $if and die "$sf.$.: duplicate $kw (lines $if and $.)\n";
-	    $ifval = ! $ifval;
+	    $ifval = ! $beentrue;
 	    $if = $.;
 	} elsif ($kw eq 'endif') {
 	    $if or die "$sf.$.: $kw outside conditional\n";

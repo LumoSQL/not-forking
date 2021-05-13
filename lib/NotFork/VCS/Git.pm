@@ -157,8 +157,6 @@ sub version {
     @_ == 1 || @_ == 2 or croak "Usage: GIT->version [(APPROXIMATE?)]";
     my ($obj, $approx) = @_;
     my $git = _git_any($obj, 'version');
-    if (! exists $obj->{git}) {
-    }
     my @stat = grep { /\bbranch\.oid\b/ }
 	$git->command('status', '--porcelain=2', '--branch');
     @stat or return undef;
