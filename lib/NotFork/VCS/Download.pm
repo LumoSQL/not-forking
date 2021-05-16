@@ -51,6 +51,11 @@ sub cache_index {
     'not-fork-downloads';
 }
 
+# we never have a valid commit ID...
+sub commit_valid {
+    return 0;
+};
+
 # check that we have any prerequisite software installed
 sub check_prereq {
     @_ == 2 or croak "Usage: PATCH->check_prereq(RESULT)";

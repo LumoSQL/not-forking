@@ -1,7 +1,7 @@
 <!-- Copyright 2020 The LumoSQL Authors, see LICENSES/CC-BY-SA-4.0 -->
 
 <!-- SPDX-License-Identifier: CC-BY-SA-4.0 -->
-<!-- SPDX-FileCopyrightText: 2020 The LumoSQL Authors -->
+<!-- SPDX-FileCopyrightText: 2021 The LumoSQL Authors -->
 <!-- SPDX-ArtifactOfProjectName: LumoSQL -->
 <!-- SPDX-FileType: Documentation -->
 <!-- SPDX-FileComment: Original by Claudio Calvelli, March 2020 -->
@@ -12,6 +12,7 @@ Table of Contents
 
    * [Not-Forking Upstream Source Code Tracker](#not-forking-upstream-source-code-tracker)
    * [Forking regarded as bad](#forking-regarded-as-bad)
+   * [Overall not-forking configuration](#overall-not-forking-configuration-)
    * [Upstream definition file](#upstream-definition-file-)
    * [Modification definition file](#modification-definition-file-)
    * [Example Configuration directory](#example-configuration-directory-)
@@ -57,12 +58,6 @@ except that it additionally copes with the messiness of software including:
   replace conditional on some other string in the file.
 * failing with an error asking for human intervention when there are major differences with upstream
 
-Each project tracked by not-forking needs to define what to track, and what
-changes to apply. This is done by providing a number of files in a directory;
-the minimum requirement is an upstream definition file; other files can also be
-present indicating what modifications to apply (if none are provided, the
-upstream sources are used unchanged).
-
 Not-forking is the grease that helps projects cooperate when creating bugs
 in the same codebase, rather than creating mutually incompatible sets of bugs.
 
@@ -94,6 +89,21 @@ the [Fossil timeline](https://sqlite.org/src/timeline) is key to how Fossil work
 source code of SQLite, a very busy project). The Fossil Timeline supports the 
 [Fossil development philosophy](https://fossil-scm.org/home/doc/trunk/www/fossil-v-git.wiki#devorg).
 
+# Overall not-forking configuration <a name="overall-not-forking-configuration-"></a>
+
+A not-forking configuration is a directory containing one or more subdirectories
+each one defining a different project to track.
+
+Each project tracked by not-forking needs to define what to track, and what
+changes to apply. This is done by providing a number of files in the project
+subdirectory of the configuration:
+the minimum requirement is an upstream definition file; other files can also be
+present indicating what modifications to apply (if none are provided, the
+upstream sources are used unchanged).
+
+The not-forking tool refers to each project using the name of the subdirectory
+containing it; when handling all projects at once, it essentially lists this
+directory to see what's there.
 
 # Upstream definition file <a name="upstream-definition-file-"></a>
 
@@ -106,18 +116,37 @@ character is a hash (`#`) are ignored; long lines can be split into multiple
 lines by ending a line with a backslash meaning continuation into the
 next line.
 
-There is a special line format to indicate conditionals; currently, the
-only condition which can be tested is whether the version number is in
-a specified range, using the syntax:
+There is a special line format to indicate conditionals, with the general form:
 
 <b>
 ```
-if version \[>\[=\] FIRST\_VERSION\] \[<\[=\] LAST\_VERSION\]
+if (condition)
 ...
-[else ...]
+[else if (condition)
+...]
+[else
+...]
 endif
 ```
 </b>
+
+Note that conditionals cannot at present be nested. The following conditions
+are available at the time of writing:
+
+- `if version =|>|>=|<|<=` NUMBER [ `=|>|>=|<|<=` NUMBER ]...
+which will be true if all the comparisons listed are true when applied to
+the version requested; for example: `if version <= 2 > 1` will be true
+when requesting version 1.5 or 2, but not when requesting 0.5, 1, or 2.5.
+
+- `if osname =|!=` NAME [ `=|!=` NAME ]...
+which will be true if the operating system name compares as required with
+all the elements; for example `if osname != netbsd != linux` will be
+true on FreeBSD but not on NetBSD, and `if osname = linux` will be true
+on Linux only (note that the NAMEs are specified in all lower case).
+
+- `if hasfile [!]/path/to/file` [ `[!]/path/to/file` ]...
+which will be true if all the files listed are present (or absent if preceded
+by a "`!`").
 
 If a key is present more than once, the last value seen wins; therefore,
 it is possible to define a key inside a conditional block, and then to
@@ -156,6 +185,76 @@ compilers (where for example 0.26 < 1.26 < 0.27).
 
 The `subtree` key indicates a directory inside the sources to use instead
 of the top level.
+
+The `version_filter` key has the same format as `if version` and means that
+only project versions which make the condition true will be considered;
+for example `version_filter = >= 1.0` could indicate that versions of the
+project before 1.0 did not provide required functionality and will not be used.
+
+Finally a line starting with the word `block` is special as it introduces
+multiple upstream definitions related to the same project; the file will be
+considered divided into blocks, with the special "`block`" line separating
+them; the first block is used as "base" and concatenated with each of the
+subsequent blocks in turn; when looking for a particular version of the
+project, the first block containing it will be used; for example, a simplified
+version of the "LMDB" project contains:
+
+```
+vcs = git
+
+block
+repos = https://github.com/openldap/openldap
+
+block
+repos = https://github.com/LMDB/lmdb
+```
+
+This is equivalent to two separate upstream files, containing:
+
+```
+vcs = git
+repos = https://github.com/openldap/openldap
+```
+
+and
+
+```
+vcs = git
+repos = https://github.com/LMDB/lmdb
+```
+
+When asked for a particular version of LMDB, the program will look for it
+first in the OpenLDAP repository, and if not found in the LMDB repository
+(which contains only older versions up to 0.9.15). As a result, one can
+obtain any version available without having to know that they come from
+different places.
+
+Another (fictional) example would be a project which
+switched from github to Fossil and at the same time did a bit of
+reorganisation of the sources:
+
+```
+# nothing here, the two parts have nothing in common!
+block
+vcs = fossil
+repos = https://project.org/src/project
+block
+vcs = git
+repos = https://github.com/some/project
+subtree = PROJECT
+```
+
+The not-forking tool will then obtain the sources from git for older versions,
+looking inside the "PROJECT" directory for them; and for later versions
+use fossil instead, and look at the top of the directory checked out (if
+a version is available on both, the fossil one will be preferred because
+it is listed first).
+
+Note that if one knows at which exact version number things changed it's
+also possible to use conditionals, however the `--list-versions` option will
+not necessarily work correctly when using conditionals, while it works when
+using multiple blocks. If required, a `version_filter` can be added to one
+or more block to make particular versions come from a particular source.
 
 ## git
 
@@ -204,7 +303,10 @@ number.
 the unpacked file names, usually this will be 1 as tarballs start with a
 single directory named after the release and that contains all the files.
 
-TBC - we also need to say how to unpack the sources etc
+At the time of writing, the program uses `file` to figure out how to unpack
+the sources, and then `tar`, `gunzip`, etc as necessary; a future version
+may allow to control the process if the program cannot figure out what to
+do with a particular download.
 
 # Modification definition file <a name="modification-definition-file-"></a>
 
@@ -227,20 +329,18 @@ of the whole file, which have a special format); this initial part ends with
 a line containing just dashes and the rest of the file, referred to as "final
 part", is interpreted based on information from the initial part.
 
-The following conditional is currently understood:
+The applicability conditions have the exact same format as the `if` which
+introduces a conditional block, without the word `if`; the overall effect
+is to ignore the whole file if the condition is false; refer to the discussion
+of conditionals above for the precise syntax and meaning.
 
-- `version`: followed by a list of "comparisons" consisting of a
-relational operator (`=`, `!=`, `<`, `<=`, `>`, `>=`) followed by a
-value, the condition will be true if all the comparisons between the
-version being extracted and the values provided are true, for example:
-`version > 1 <= 2` would be true when extracting versions 1.1 or 2 but
-not when extracting version 1; one use of this key is to indicate that
-a modification is only necessary up to a particular version, because for
+One use of the applicability conditions is to indicate that some modifications
+are only necessary up to a particular version, because for
 example that modification has been accepted by upstream and is no longer
-necessary; another use of this key is to identify versions in which
+necessary; or that a modification is only necessary on a particular operating
+system; another use of these conditions is to identify versions in which
 substantial upstream changes make it difficult to specify a modification
-which works for every possible version. Specifying this keyword is
-essentially equivalent to put the whole `.mod` file in a conditional.
+which works for every possible version.
 
 The following key is currently understood:
 
@@ -266,7 +366,8 @@ following for the `patch` method:
 - `list`: extra options to the "patch" program to list what it would do
 instead of actually doing it (this is used internally to figure out
 what changes; the default currently assumes the "patch" program provided
-by most Linux distributions)
+by most Linux distributions, or the "gpatch" program available as a
+package for the BSDs).
 
 If a file is modified by more than one method, these are executed in
 the sequence determined by the ordering of the modification definition
@@ -378,9 +479,9 @@ any messages except fatal errors.
 - `--update` asks to connect to network and request updates to any
 repositories needed to complete the requested operation; this is
 the default
-- `--no-update` asks to avoid updating repositories which are already
-cached; if the version requested is newer than the last update, the
-operation will fail
+- `-n` (or `--no-update`) asks to avoid updating repositories which are
+already cached; if the version requested is newer than the last update,
+the operation will fail
 - `--offline` prohibits any network access; if data required is not
 available in a local cache, the operation will fail
 - `--online` allows the program to connect to network when data is
@@ -390,6 +491,13 @@ not available in a local cache; this is the default behaviour unless
 at least the version specified; it exits with status OK if so, otherwise
 it exits with a failure status and produces its version number on
 standard output. No other processing happens when this option is specified.
+- `--find-version=`VERSION[:TO\_VERSION] checks that the not-fork tool
+itself is at least version VERSION and at most TO\_VERSION (if specified);
+if so, it prints the path to its own executable; if not in range, it
+will attempt to obtain a suitable version from its own sources and prints
+the path to a command to call that. The output can be composed of
+multiple lines, these will be the command and arguments to use to
+call the correct version.
 - `-V` (or `--my-version`) prints the version of the program itself
 and exits (the `--version` option is already used to select a version
 of a package to extract)

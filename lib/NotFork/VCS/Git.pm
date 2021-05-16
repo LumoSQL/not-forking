@@ -131,6 +131,19 @@ sub set_commit {
     $obj;
 }
 
+# see if a commit ID is valid
+sub commit_valid {
+    @_ == 2 or croak "Usage: GIT->commit_valid(COMMIT_ID)";
+    my ($obj, $commit) = @_;
+    my $git = _git_any($obj, 'commit_valid');
+    my $ok = 0;
+    eval {
+	$git->command('log', "$commit^1..$commit");
+	$ok = 1;
+    };
+    $ok;
+}
+
 sub _git_any {
     my ($obj, $cmd) = @_;
     exists $obj->{git} and return $obj->{git};

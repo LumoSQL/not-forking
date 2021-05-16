@@ -79,7 +79,7 @@ sub get {
 
 # check that we have any prerequisite software installed
 sub check_prereq {
-    @_ == 2 or croak "Usage: PATCH->check_prereq(RESULT)";
+    @_ == 2 or croak "Usage: FOSSIL->check_prereq(RESULT)";
     my ($obj, $result) = @_;
     add_prereq($result,
 	[\&prereq_program, 'fossil', '1.0', 'version', qr/\b(\d[\.\d]*)\b/],
@@ -108,7 +108,7 @@ sub set_version {
     my ($obj, $version) = @_;
     exists $obj->{fossil} or croak "Need to call FOSSIL->get before set_version";
     my $vv = join('', 'tag:', $obj->{version_prefix}, $version, $obj->{version_suffix});
-    _fossil($obj->{fossil}, 'checkout', $vv);
+    _fossil_quiet($obj->{fossil}, 'checkout', $vv);
     $obj;
 }
 
@@ -116,8 +116,15 @@ sub set_commit {
     @_ == 2 or croak "Usage: FOSSIL->set_commit(COMMIT)";
     my ($obj, $commit) = @_;
     exists $obj->{fossil} or croak "Need to call FOSSIL->get before set_commit";
-    _fossil($obj->{fossil}, 'checkout', $commit);
+    _fossil_quiet($obj->{fossil}, 'checkout', $commit);
     $obj;
+}
+
+# see if a commit ID is valid
+sub commit_valid {
+    @_ == 2 or croak "Usage: FOSSIL->commit_valid(COMMIT_ID)";
+    my ($obj, $commit) = @_;
+    _fossil_check($obj->{fossil}, 'timeline', '-n', 1, $commit);
 }
 
 # list all version numbers
@@ -194,6 +201,23 @@ sub _fossil {
     die "fossil exited with status " . ($? >> 8) . "\n";
 }
 
+sub _fossil_quiet {
+    my ($dir, @cmd) = @_;
+    local $SIG{CHLD} = sub { };
+    my $pid = fork;
+    defined $pid or die "Cannot fork: $!\n";
+    if (! $pid) {
+	chdir $dir or die "$dir: $!\n";
+	open(STDOUT, '>/dev/null');
+	exec 'fossil', @cmd
+	    or die "exec fossil: $!\n";
+    }
+    waitpid($pid, 0) < 0 and die "wait: $!\n";
+    $? == 0 and return;
+    $? & 0x7f and die "fossil died with signal " . ($? & 0x7f) . "\n";
+    die "fossil exited with status " . ($? >> 8) . "\n";
+}
+
 sub _fossil_read {
     my ($dir, $ignore_error, @cmd) = @_;
     my $fh;
@@ -225,6 +249,24 @@ sub _fossil_get {
     $@ && ! $ignore_error and die $@;
     defined $res and $res =~ s/\n+$//;
     return $res;
+}
+
+sub _fossil_check {
+    my ($dir, @cmd) = @_;
+    local $SIG{CHLD} = sub { };
+    my $pid = fork;
+    defined $pid or die "Cannot fork: $!\n";
+    if (! $pid) {
+	chdir $dir or die "$dir: $!\n";
+	open(STDOUT, '>/dev/null');
+	open(STDERR, '>/dev/null');
+	exec 'fossil', @cmd
+	    or die "exec fossil: $!\n";
+    }
+    waitpid($pid, 0) < 0 and die "wait: $!\n";
+    $? == 0 and return 1;
+    $? & 0x7f and die "fossil died with signal " . ($? & 0x7f) . "\n";
+    return 0;
 }
 
 1

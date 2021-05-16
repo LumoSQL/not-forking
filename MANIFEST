@@ -11,6 +11,7 @@ lib/NotFork/VCSCommon.pm
 lib/NotFork/VCS/Download.pm
 lib/NotFork/VCS/Fossil.pm
 lib/NotFork/VCS/Git.pm
+lib/NotFork/not-fork.d/not-fork/upstream.conf
 doc/not-forking.md
 doc/examples/bdb/upstream.conf
 doc/examples/lmdb/lumo-new-functions.mod
@@ -34,3 +35,4 @@ misc/gentoo/not-fork-0.3.ebuild
 misc/gentoo/not-fork-0.3.1.ebuild
 misc/gentoo/not-fork-0.3.2.ebuild
 misc/gentoo/not-fork-0.3.3.ebuild
+misc/gentoo/not-fork-0.4.ebuild

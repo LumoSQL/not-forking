@@ -1,6 +1,6 @@
 package NotFork::Get;
 
-# Copyright 2020 The LumoSQL Authors, see LICENSES/MIT
+# Copyright 2021 The LumoSQL Authors, see LICENSES/MIT
 #
 # SPDX-License-Identifier: MIT
 # SPDX-FileCopyrightText: 2020 The LumoSQL Authors
@@ -24,6 +24,7 @@ our @EXPORT_OK = qw(
     set_input
     set_cache
     set_output
+    get_output
     all_names
     load_file
     list_files
@@ -66,6 +67,10 @@ sub set_output {
     @_ == 1 or croak "Usage: NotFork::Get::set_output(DIR)";
     ($output) = @_;
     # we'll check it when we use it
+}
+
+sub get_output {
+    $output;
 }
 
 sub all_names {
@@ -185,7 +190,9 @@ sub new {
 
 sub DESTROY {
     my ($obj) = @_;
-    $obj->{vcslock} and _unlock($obj->{vcslock});
+    for my $block (@{$obj->{blocks}}) {
+	$block->{vcslock} and _unlock($block->{vcslock});
+    }
 }
 
 my %required_keys_upstream = (
@@ -225,9 +232,10 @@ sub load_file {
     my $ifval = 1;
     my $beentrue = 0;
     my $stop = defined $options ? $options->{stop} : undef;
-    my @version_cond;
+    my $block = defined $options ? $options->{block} : undef;
     while (defined (my $line = <$fh>)) {
 	defined $stop && $stop->($line) and last;
+	defined $block && $block->($line) and return undef;
 	$line =~ /^\s*$/ and next;
 	$line =~ /^\s*#/ and next;
 	chomp $line;
@@ -247,7 +255,7 @@ sub load_file {
 	    exists $condition_keys{$item} or die "$sf.$.: Invalid item ($item)\n";
 	    my $code = $condition_keys{$item};
 	    my $have = $data->{$item};
-	    $ifval = $code->($data, $item, $line, \@version_cond);
+	    $ifval = $code->($data, $item, $line);
 	    $beentrue = $ifval;
 	    $if = 0;
 	} elsif ($kw eq 'elseif' || $kw eq 'elsif') {
@@ -258,7 +266,7 @@ sub load_file {
 	    exists $condition_keys{$item} or die "$sf.$.: Invalid item ($item)\n";
 	    my $code = $condition_keys{$item};
 	    my $have = $data->{$item};
-	    $ifval = ! $beentrue && $code->($data, $item, $line, \@version_cond);
+	    $ifval = ! $beentrue && $code->($data, $item, $line);
 	} elsif ($kw eq 'else') {
 	    defined $if or die "$sf.$.: $kw outside conditional\n";
 	    $if and die "$sf.$.: duplicate $kw (lines $if and $.)\n";
@@ -275,7 +283,6 @@ sub load_file {
 	    $hash->{$kw} = $line;
 	}
     }
-    $hash->{_version_cond} = \@version_cond;
     defined $options or return 1;
     if (exists $options->{condition}) {
 	my $condition = $options->{condition};
@@ -300,9 +307,31 @@ sub _load_upstream {
     my ($obj, $sf) = @_;
     open (my $fh, '<', $sf) or die "$sf: $!\n";
     my %kw;
-    load_file($fh, $sf, $obj, \%kw, { required => \%required_keys_upstream });
+    my %block = %$obj;
+    my $block = load_file($fh, $sf, \%block, \%kw, {
+	required => \%required_keys_upstream,
+	block => sub { $_[0] =~ /^block\b/i },
+    });
+    my @blocks;
+    if (defined $block) {
+	# only one block
+	$block{kw} = \%kw;
+	push @blocks, \%block;
+    } else {
+	# we have multiple blocks which we store separately
+	while (! eof($fh)) {
+	    my %bbl = %$obj;
+	    my %bkw = %kw;
+	    load_file($fh, $sf, \%bbl, \%bkw, {
+		required => \%required_keys_upstream,
+		stop => sub { $_[0] =~ /^block\b/i },
+	    });
+	    $bbl{kw} = \%bkw;
+	    push @blocks, \%bbl;
+	}
+    }
+    $obj->{blocks} = \@blocks;
     close $fh;
-    $obj->{kw} = \%kw;
 }
 
 sub _load_modfile {
@@ -330,7 +359,6 @@ sub _load_vcs {
     $data->{vcs} = $vcsobj;
     $data->{cache_index} = $vcsobj->cache_index;
     $data->{hash} = cache_hash($data->{cache_index});
-    delete $data->{has_data};
 }
 
 sub _load_method {
@@ -440,6 +468,8 @@ sub _convert_version {
 	$suffix = 'c';
     } elsif ($vn =~ s/-delta$//) {
 	$suffix = 'd';
+    } elsif ($vn =~ s/-git$//) {
+	$suffix = '0';
     } else {
 	$suffix = 'z';
     }
@@ -586,22 +616,28 @@ sub prereq_module {
     return '';
 }
 
+sub _set_vcs {
+    my ($obj, $key, $val) = @_;
+    $val ||= 0;
+    $obj->{$key} = $val;
+    for my $block (@{$obj->{blocks}}) {
+	exists $block->{vcs} and $block->{vcs}->$key($obj->{$key});
+    }
+    $obj;
+}
+
 sub verbose {
     @_ == 1 || @_ == 2 or croak "Usage: NOTFORK->verbose [(LEVEL)]";
     my $obj = shift;
     @_ or return $obj->{verbose};
-    $obj->{verbose} = shift(@_) || 0;
-    exists $obj->{vcs} and $obj->{vcs}->verbose($obj->{verbose});
-    $obj;
+    _set_vcs($obj, 'verbose', @_);
 }
 
 sub offline {
     @_ == 1 || @_ == 2 or croak "Usage: NOTFORK->offline [(LEVEL)]";
     my $obj = shift;
     @_ or return $obj->{offline};
-    $obj->{offline} = shift(@_) || 0;
-    exists $obj->{vcs} and $obj->{vcs}->offline($obj->{offline});
-    $obj;
+    _set_vcs($obj, 'offline', @_);
 }
 
 sub version {
@@ -623,10 +659,9 @@ sub commit {
 }
 
 sub _lock {
-    my ($mode, $file, $name, $nolock) = @_;
+    my ($mode, $file, $name) = @_;
     open (my $fh, $mode, $file) or die "$file: $!\n";
     if (! flock $fh, LOCK_EX|LOCK_NB) {
-	$nolock and die "Lock already held";
 	print STDERR "Waiting for lock on $name...";
 	flock $fh, LOCK_EX or die " $file: $!\n";
 	print STDERR "OK\n";
@@ -644,124 +679,107 @@ sub _unlock {
 sub get {
     @_ == 1 || @_ == 2 or croak "Usage: NOTFORK->get [(SKIP_UPDATE?)]";
     my ($obj, $noupdate) = @_;
-    $obj->{offline} and $noupdate = 1;
-    my $vcs = $obj->{vcs};
     _check_cache_dir();
-    my $vl = $obj->{verbose} && $obj->{verbose} > 2;
-    make_path($cache, { verbose => $vl, mode => 0700 });
-    my $clfh = _lock('>>', "$cache/.lock", 'cache directory', $obj->{_nolock});
-    my $cd = $obj->{cache} = "$cache/$obj->{hash}";
-    my $vlfh;
-    if (-d $cd) {
-	$vlfh = _lock('<', "$cd/index", "cache for $obj->{cache_index}", $obj->{_nolock});
-	my $index = <$vlfh>;
-	defined $index or die "Missing index for cache $cd\n";
-	chomp $index;
-	$index eq $vcs->cache_index
-	    or die "Invalid cache directory $cd\n";
-    } else {
-	make_path($cd, { verbose => $vl, mode => 0700 });
-	# the next _lock() is the only thing which can create the index file,
-	# and we are inside another lock, so we can safely use ">" and we
-	# know we aren't going to truncate the file created by somebody else
-	$vlfh = _lock('>', "$cd/index", "cache for $obj->{cache_index}", $obj->{_nolock});
-	print $vlfh "$obj->{cache_index}\n" or die "$cd/index $!\n";
-	$noupdate = undef;
+    $obj->{offline} and $noupdate = 1;
+    my %versions = ();
+    my $commit_block;
+    for my $block (@{$obj->{blocks}}) {
+	my $vcs = $block->{vcs};
+	my $vl = $obj->{verbose} && $obj->{verbose} > 2;
+	make_path($cache, { verbose => $vl, mode => 0700 });
+	my $clfh = _lock('>>', "$cache/.lock", 'cache directory');
+	my $cd = $block->{cache} = "$cache/$block->{hash}";
+	my $vlfh;
+	if (-d $cd) {
+	    $vlfh = _lock('<', "$cd/index", "cache for $block->{cache_index}");
+	    my $index = <$vlfh>;
+	    defined $index or die "Missing index for cache $cd\n";
+	    chomp $index;
+	    $index eq $vcs->cache_index
+		or die "Invalid cache directory $cd\n";
+	} else {
+	    make_path($cd, { verbose => $vl, mode => 0700 });
+	    # the next _lock() is the only thing which can create the index file,
+	    # and we are inside another lock, so we can safely use ">" and we
+	    # know we aren't going to truncate the file created by somebody else
+	    $vlfh = _lock('>', "$cd/index", "cache for $block->{cache_index}");
+	    print $vlfh "$block->{cache_index}\n" or die "$cd/index $!\n";
+	    $noupdate = undef;
+	}
+	_unlock($clfh);
+	# somebody else could lock the cache directory at this point, but
+	# we keep the lock on our bit until we've done the VCS part; there
+	# is no danger of deadlock if everybody uses this subroutine to
+	# do the locking or make sure to do things in the right order
+	$block->{vcslock} = $vlfh;
+	my $top = "$cd/vcs";
+	$block->{vcsbase} = $top;
+	$vcs->get($top, $noupdate);
+	my @v = $vcs->all_versions;
+	if ($block->{kw}{version_filter}) {
+	    # some versions are excluded, for whatever reason, so trim the list
+	    my $convert = _convert_function($obj->{blocks}[0]{compare});
+	    my $line = $block->{kw}{version_filter};
+	    while ($line =~ s/^(==?|!=|>=?|<=?)\s*(\S+)\s*//) {
+		my $op = $1;
+		my $need = $convert->($2);
+		@v = grep { _cmp($op, $convert->($_), $need) } @v;
+	    }
+	    $line eq ""
+		or die "Invalid operand for version_filter "
+		     . \"$block->{kw}{version_filter}\" (extra \"$line\" at end)\n";
+	}
+	for my $v (@v) {
+	    exists $versions{$v} or $versions{$v} = $block;
+	}
+	defined $obj->{commit} or next;
+	$vcs->commit_valid($obj->{commit}) and $commit_block = $block;
     }
-    _unlock($clfh);
-    # somebody else could lock the cache directory at this point, but
-    # we keep the lock on our bit until we've done the VCS part; there
-    # is no danger of deadlock if everybody uses this subroutine to
-    # do the locking or make sure to do things in the right order
-    $obj->{vcslock} = $vlfh;
-    my $top = "$cd/vcs";
-    $obj->{vcsbase} = $top;
-    $vcs->get($top, $noupdate);
-    $obj->{has_data} = 1;
+    $obj->{version_map} = \%versions;
+    # if they have inconsistent version compares, all bets are off
+    # so we just use the one from the first block
+    my $convert = _convert_function($obj->{blocks}[0]{compare});
+    $obj->{all_versions} = [ sort { $convert->($a) cmp $convert->($b) } keys %versions ];
+    my ($nv, $nb);
     if (defined $obj->{version}) {
-	$vcs->set_version($obj->{version});
+	my $v = $obj->{version};
+	exists $versions{$v} or die "Unknown version: $v\n";
+	$nb = $versions{$v};
+	my $vcs = $nb->{vcs};
+	$vcs->set_version($v);
+	$nv = $vcs->version;
     } elsif (defined $obj->{commit}) {
-	$vcs->set_commit($obj->{commit});
-    } elsif (defined (my $lv = $obj->last_version)) {
-	$vcs->set_version($lv);
+	my $c = $obj->{commit};
+	defined $commit_block or die "Unknown commit ID: $c\n";
+	$nb = $commit_block;
+	my $vcs = $nb->{vcs};
+	$vcs->set_commit($c);
+	$nv = $vcs->version;
+    } elsif (keys %versions) {
+	my $v = $obj->{all_versions}[-1];
+	$nb = $versions{$v};
+	my $vcs = $nb->{vcs};
+	$vcs->set_version($v);
+	$nv = $vcs->version;
+    } else {
+	$nb = $obj->{blocks}[0];
     }
-    my $nv = $vcs->version;
     defined $nv and $obj->{version} = $nv;
+    defined $nb and $obj->{vblock} = $nb;
     $obj;
 }
 
 sub all_versions {
     @_ == 1 or croak "Usage: NOTFORK->all_versions";
     my ($obj) = @_;
-    exists $obj->{has_data} or croak "Need to call get() before all_versions()";
-    exists $obj->{all_versions} and return @{$obj->{all_versions}};
-    my $convert = _convert_function($obj->{kw}{compare});
-    # get list of conditionals on version seen when loading the upstream file
-    my @cond = sort {
-	$a->[2] cmp $b->[2] or $a->[0] cmp $a->[1]
-    } @{$obj->{kw}{_version_cond}};
-    my @v;
-    if (@cond) {
-	# there's a conditional on versions, so things may need multiple
-	# passes to get all possibilities
-	# There's probably a better way to do this, but it'll do for now
-	my %v;
-	my $add_versions = sub {
-	    my ($o) = @_;
-	    for my $v ($o->{vcs}->all_versions) {
-		$v{$v} = undef;
-	    }
-	};
-	my $class = ref $obj;
-	my $get_add_versions = sub {
-	    eval {
-		my ($ver) = @_;
-		my $o = $class->new($obj->{name}, $ver, undef);
-		# the "get" call will fail if it points to a cache item
-		# we've already locked; but this is OK as we've already
-		# had the list in that case
-		$o->{version} = $ver;
-		$o->{_nolock} = 1;
-		$o->get(1);
-		$add_versions->($o);
-	    };
-	};
-	$add_versions->($obj);
-	my $prev = ['', ''];
-	for my $vp (@cond) {
-	    my ($op, $ver, $cv) = @$vp;
-	    $op eq $prev->[0] && $ver eq $prev->[1] and next;
-	    $get_add_versions->($ver);
-	    (my $nv = $ver) =~ s/(\d+)(\D*)$/($1 - 1) . $2/e;
-	    if ($nv ne $ver) {
-		$get_add_versions->($nv);
-	    }
-	}
-	@v = sort { $convert->($a) cmp $convert->($b) } keys %v;
-    } else {
-	# normal case, no conditionals on versions
-	@v = sort { $convert->($a) cmp $convert->($b) } $obj->{vcs}->all_versions;
-    }
-    if ($obj->{kw}{version_filter}) {
-	# some versions are excluded, for whatever reason, so trim the list
-	my $line = $obj->{kw}{version_filter};
-	while ($line =~ s/^(==?|!=|>=?|<=?)\s*(\S+)\s*//) {
-	    my $op = $1;
-	    my $need = $convert->($2);
-	    @v = grep { _cmp($op, $convert->($_), $need) } @v;
-	}
-	$line eq ""
-	    or die "Invalid operand for version_filter \"$obj->{kw}{version_filter}\" "
-		 . "(extra \"$line\" at end)\n";
-    }
-    $obj->{all_versions} = \@v;
-    return @v;
+    exists $obj->{all_versions} or croak "Need to call get() before all_versions()";
+    return @{$obj->{all_versions}};
 }
 
 sub last_version {
     @_ == 1 or croak "Usage: NOTFORK->last_version";
     my ($obj) = @_;
-    exists $obj->{has_data} or croak "Need to call get() before last_version()";
+    exists $obj->{version_map} or croak "Need to call get() before last_version()";
     my @vers = $obj->all_versions;
     @vers or return undef;
     $vers[-1];
@@ -770,18 +788,23 @@ sub last_version {
 sub info {
     @_ == 2 or croak "Usage: NOTFORK->info(FILEHANDLE)";
     my ($obj, $fh) = @_;
-    exists $obj->{has_data} or croak "Need to call get() before info()";
-    $obj->{vcs}->info($fh);
+    exists $obj->{version_map} or croak "Need to call get() before info()";
+    my $block = $obj->{vblock} || $obj->{blocks}[0];
+    $block->{vcs}->info($fh);
     $obj;
 }
 
 sub install {
     @_ == 1 or croak "Usage: NOTFORK->install";
     my ($obj) = @_;
-    exists $obj->{has_data} or croak "Need to call get() before install()";
+    exists $obj->{version_map} or croak "Need to call get() before install()";
+    exists $obj->{vblock} or croak "Need to call get() before install()";
     my $verbose = $obj->{verbose} || 0;
     my %filelist = ();
-    _make_filelist($obj, \%filelist);
+    my $block = $obj->{vblock};
+    my $vcsobj = $block->{vcs};
+    my $subtree = $block->{kw}{subtree};
+    $vcsobj->list_files($subtree, sub { _store_file(\%filelist, @_); });
     my %oldlist = ();
     my $index = "$output/.index";
     make_path($index, { verbose => $verbose > 2, mode => 0700 });
@@ -832,18 +855,17 @@ sub install {
     }
     # OK, either they passed us a new directory, or they passed us something
     # which we created and they didn't modify except for building objects;
-    my $vcsobj = $obj->{vcs};
     my ($version, $commit_id) = $vcsobj->version;
     # apply modifications as requested in a temporary cache area; we remove
     # any old version and start again, so things don't get confused
     if (exists $obj->{mod}) {
 	$verbose > 1 and print "Applying source modifications\n";
-	my $cd = "$obj->{cache}/mods";
+	my $cd = "$block->{cache}/mods";
 	-d $cd and remove_tree($cd);
 	make_path($cd);
 	my %cached = ();
-	my $vcs = $obj->{vcsbase};
-	my $subtree = $obj->{kw}{subtree};
+	my $vcs = $block->{vcsbase};
+	my $subtree = $block->{kw}{subtree};
 	my $sp = defined $subtree ? "$subtree/" : '';
 	for my $mobj (@{$obj->{mod}}) {
 	    $mobj->apply($vcs, $vcsobj, $subtree, sub { # replace callback
@@ -980,14 +1002,6 @@ sub _filehash {
 	$defhash = $sha->hexdigest;
     };
     $defhash;
-}
-
-# make a file list from the cache directory
-sub _make_filelist {
-    my ($obj, $filelist) = @_;
-    my $vcs = $obj->{vcs};
-    my $subtree = $obj->{kw}{subtree};
-    $vcs->list_files($subtree, sub { _store_file($filelist, @_); });
 }
 
 # helper function for a VCS to list files using "find"; if all files to be

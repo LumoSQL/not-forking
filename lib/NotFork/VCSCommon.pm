@@ -59,10 +59,15 @@ sub offline {
 }
 
 # name used to index elements in download cache; we use the repository URL
+# and, if specified, the branch (this would allow to have two separate
+# repositories differing only by the branch, and not interfere with each
+# other)
 sub cache_index {
     @_ == 1 or croak _croak($_[0], "->cache_index");
     my ($obj) = @_;
-    $obj->{repos};
+    my $ci = $obj->{repos};
+    defined $obj->{branch} and $ci .= " " . $obj->{branch};
+    $ci;
 }
 
 # helper function for a VCS's list_files, called with an open filehandle,

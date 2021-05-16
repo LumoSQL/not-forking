@@ -25,14 +25,22 @@ use Getopt::Long qw(GetOptions GetOptionsFromArray);
 #use FindBin;
 #use lib "$FindBin::Bin/../lib";
 
-use NotFork::Get qw(set_input set_cache set_output all_names version_atleast recommend);
+use NotFork::Get qw(
+    set_input
+    set_cache
+    set_output
+    get_output
+    all_names
+    version_atleast
+    recommend
+);
 
-our $VERSION = '0.3.4';
+our $VERSION = '0.4';
 
 Getopt::Long::Configure("bundling");
 
 my ($version, $commit, $query, $help, $noupdate, $check_version, $list_versions);
-my ($offline, $my_version, $check_prereq, $check_recommend, @names);
+my ($offline, $my_version, $check_prereq, $check_recommend, $find_version, @names);
 my $verbose = 1;
 my @options = (
     'c|commit=s'       => \$commit,
@@ -53,6 +61,7 @@ my @options = (
     'check-prereq'     => \$check_prereq,
     'check-recommend'  => \$check_recommend,
     'V|my-version'     => \$my_version,
+    'find-version=s'   => \$find_version,
     '<>'               => \&add_name,
 );
 
@@ -87,6 +96,45 @@ if (defined $check_version) {
     exit 1;
 }
 
+my ($min_version, $max_version);
+if (defined $find_version) {
+    $min_version = $find_version;
+    my $ok = 1;
+    if ($min_version =~ s/:(.*)$//) {
+	$max_version = $1;
+	$ok = version_atleast($max_version, $VERSION);
+    }
+    $ok &&= version_atleast($VERSION, $min_version);
+    if ($ok) {
+	# OK, the running version is OK, how do we call it?
+	(my $lib = $FindBin::Bin) =~ s|/[^/]+$|/lib|;
+	if (-d "$lib/NotFork") {
+	    # program is running from source dir
+	    print "$^X\n";
+	    print "-I$lib\n";
+	    print "$0\n";
+	} else {
+	    # program is installed
+	    print "$0\n";
+	}
+	exit 0;
+    }
+    # we are not in the required range, but we can not-fork ourselves
+    # to find it; we rewrite the command-line options to find our own
+    # configuration and then continue as normal
+    undef $commit;
+    undef $version; # we'll check later
+    for my $inc (@INC, undef) {
+	defined $inc or die "Cannot find not-forking configuration\n";
+	-f "$inc/NotFork/not-fork.d/not-fork/upstream.conf" or next;
+	set_input("$inc/NotFork/not-fork.d");
+	last;
+    }
+    @names = ();
+    add_name('not-fork');
+    # now continue as normal for a bit
+}
+
 my %prereq;
 if (defined $check_recommend) {
     %prereq = recommend();
@@ -104,17 +152,36 @@ if (! @names) {
 for my $np (@names) {
     my ($name, $version, $commit) = @$np;
     my $nfobj = new NotFork::Get($name, $version, $commit);
-    $nfobj->verbose($verbose);
-    $nfobj->offline($offline);
+    defined $verbose and $nfobj->verbose($verbose);
+    defined $offline and $nfobj->offline($offline);
     if ($check_prereq) {
 	$nfobj->check_prereq(\%prereq);
     } else {
 	$nfobj->get($noupdate);
+	if (defined $find_version) {
+	    my @v = grep { version_atleast($_, $min_version) } $nfobj->all_versions;
+	    defined $max_version and @v = grep { version_atleast($max_version, $_) } @v;
+	    @v or die "No suitable versions found\n";
+	    # great, just get the latest in range and we're done
+	    my $v = pop @v;
+	    $nfobj = new NotFork::Get($name, $v, undef);
+	    defined $verbose and $nfobj->verbose($verbose);
+	    defined $offline and $nfobj->offline($offline);
+	    $nfobj->get(1);
+	}
 	if ($list_versions || $query) {
 	    $query and $nfobj->info(\*STDOUT);
 	    $list_versions and print map { "$_\n" } $nfobj->all_versions;
 	} else {
 	    $nfobj->install();
+	    if (defined $find_version) {
+		my $dir = get_output() . "/$nfobj->{name}";
+		-f "$dir/bin/not-fork" or die "Internal error, sources not in $dir\n";
+		print "$^X\n";
+		print "-I$dir/lib\n";
+		print "$dir/bin/not-fork\n";
+		exit 0;
+	    }
 	}
     }
 }
