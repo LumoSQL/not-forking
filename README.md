@@ -174,7 +174,9 @@ may raise PRs on Github, but they will end up being pushed through Fossil anyway
 
 Here you will find the tool and its libraries, and the [full documentation](doc/not-forking.md).
 It also contains an example configuration (in directory doc/examples) which can
-be used for testing.
+be used for testing. As of version 0.4, directory lib/NotFork/not-fork.d contains
+example configuration for the tool itself, used to find a specific version
+even if different from the one installed.
 
 The Perl module Text::Glob is needed. Many operating systems package it under the name libtext-glob-perl.
 For example, on Debian or Ubuntu systems, type:

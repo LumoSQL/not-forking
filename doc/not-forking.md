@@ -498,6 +498,12 @@ will attempt to obtain a suitable version from its own sources and prints
 the path to a command to call that. The output can be composed of
 multiple lines, these will be the command and arguments to use to
 call the correct version.
+- `--use-version=`VERSION[:TO\_VERSION] checks that the not-fork tool
+itself is at least version VERSION and at most TO\_VERSION (if specified);
+if so, it continues as normal; if not, it will attempt to obtain a suitable
+version from its own sources and runs it with the remaining command-line
+arguments; some command-line arguments will still be processed, for
+example to find where to keep these sources.
 - `-V` (or `--my-version`) prints the version of the program itself
 and exits (the `--version` option is already used to select a version
 of a package to extract)

@@ -35,12 +35,11 @@ use NotFork::Get qw(
     recommend
 );
 
-our $VERSION = '0.4';
-
-Getopt::Long::Configure("bundling");
+our $VERSION = '0.4.1';
 
 my ($version, $commit, $query, $help, $noupdate, $check_version, $list_versions);
 my ($offline, $my_version, $check_prereq, $check_recommend, $find_version, @names);
+my ($use_version, $error_option, $ignore);
 my $verbose = 1;
 my @options = (
     'c|commit=s'       => \$commit,
@@ -62,9 +61,11 @@ my @options = (
     'check-recommend'  => \$check_recommend,
     'V|my-version'     => \$my_version,
     'find-version=s'   => \$find_version,
+    'use-version=s'    => \$use_version,
     '<>'               => \&add_name,
 );
 
+Getopt::Long::Configure(qw(bundling passthrough));
 if (defined (my $home = $ENV{HOME})) {
     # read the first configuration file we find
     my $cfile = "$home/.config/LumoSQL/not-fork.conf";
@@ -81,7 +82,43 @@ if (defined (my $home = $ENV{HOME})) {
 	GetOptionsFromArray(\@config, @options) or usage(1);
     }
 }
-GetOptions(@options) or usage(1);
+
+# if we see a --use-version we'll need to re-parse @ARGV so make a copy
+my @save_argv = @ARGV;
+# a "--" will terminate option processing, but we don't really want that
+# and our non-option arguments cannot start with a "-" so it is not needed
+while (@ARGV) {
+    GetOptions(@options) or usage(1);
+    @ARGV && $ARGV[0] eq '--' and shift @ARGV;
+}
+
+# if they asked for --use-version we'll call that version...
+if (defined $use_version) {
+    my @tool = find_version($use_version);
+    if (@tool) {
+	# we need to run something else; remove the --use-version from it first
+	for (my $i = 0; $i < @save_argv; $i++) {
+	    if (lc($save_argv[$i]) eq '--use-version') {
+		splice(@save_argv, $i, 2);
+		redo;
+	    }
+	    if ($save_argv[$i] =~ /^--use-version=/) {
+		splice(@save_argv, $i, 1);
+		redo;
+	    }
+	}
+	exec @tool, @save_argv;
+	die "Cannot exec $tool[0]: $!\n";
+    }
+    # our version is OK, so continue as normal
+}
+
+# if they specified an unknown option and we haven't changed our own
+# version, report it now
+if (defined $error_option) {
+    print STDERR $error_option;
+    usage(1);
+}
 
 $help and usage(0);
 
@@ -96,43 +133,17 @@ if (defined $check_version) {
     exit 1;
 }
 
-my ($min_version, $max_version);
 if (defined $find_version) {
-    $min_version = $find_version;
-    my $ok = 1;
-    if ($min_version =~ s/:(.*)$//) {
-	$max_version = $1;
-	$ok = version_atleast($max_version, $VERSION);
-    }
-    $ok &&= version_atleast($VERSION, $min_version);
-    if ($ok) {
-	# OK, the running version is OK, how do we call it?
+    my @tool = find_version($find_version);
+    if (! @tool) {
+	# this version is acceptable, and now we need to figure out how
+	# we were called
 	(my $lib = $FindBin::Bin) =~ s|/[^/]+$|/lib|;
-	if (-d "$lib/NotFork") {
-	    # program is running from source dir
-	    print "$^X\n";
-	    print "-I$lib\n";
-	    print "$0\n";
-	} else {
-	    # program is installed
-	    print "$0\n";
-	}
-	exit 0;
+	-d "$lib/NotFork" and push @tool, $^X, "-I$lib";
+	push @tool, $0;
     }
-    # we are not in the required range, but we can not-fork ourselves
-    # to find it; we rewrite the command-line options to find our own
-    # configuration and then continue as normal
-    undef $commit;
-    undef $version; # we'll check later
-    for my $inc (@INC, undef) {
-	defined $inc or die "Cannot find not-forking configuration\n";
-	-f "$inc/NotFork/not-fork.d/not-fork/upstream.conf" or next;
-	set_input("$inc/NotFork/not-fork.d");
-	last;
-    }
-    @names = ();
-    add_name('not-fork');
-    # now continue as normal for a bit
+    print "$_\n" for @tool;
+    exit 0;
 }
 
 my %prereq;
@@ -158,30 +169,11 @@ for my $np (@names) {
 	$nfobj->check_prereq(\%prereq);
     } else {
 	$nfobj->get($noupdate);
-	if (defined $find_version) {
-	    my @v = grep { version_atleast($_, $min_version) } $nfobj->all_versions;
-	    defined $max_version and @v = grep { version_atleast($max_version, $_) } @v;
-	    @v or die "No suitable versions found\n";
-	    # great, just get the latest in range and we're done
-	    my $v = pop @v;
-	    $nfobj = new NotFork::Get($name, $v, undef);
-	    defined $verbose and $nfobj->verbose($verbose);
-	    defined $offline and $nfobj->offline($offline);
-	    $nfobj->get(1);
-	}
 	if ($list_versions || $query) {
 	    $query and $nfobj->info(\*STDOUT);
 	    $list_versions and print map { "$_\n" } $nfobj->all_versions;
 	} else {
 	    $nfobj->install();
-	    if (defined $find_version) {
-		my $dir = get_output() . "/$nfobj->{name}";
-		-f "$dir/bin/not-fork" or die "Internal error, sources not in $dir\n";
-		print "$^X\n";
-		print "-I$dir/lib\n";
-		print "$dir/bin/not-fork\n";
-		exit 0;
-	    }
 	}
     }
 }
@@ -193,6 +185,13 @@ if ($check_prereq) {
 
 sub add_name {
     my ($name) = @_;
+    if ($name =~ /^-/) {
+	# this would be an invalid option, but if we end up having
+	# --use-version it may actually be valid for the target
+	# version; so we only record this
+	defined $error_option or $error_option = "Unknown option: $name\n";
+	return;
+    }
     defined $version && defined $commit and usage();
     push @names, [$name, $version, $commit];
     undef $version;
@@ -284,5 +283,47 @@ sub list_prereq {
 	    printf "%-9s %-${maxv}s %s\n", $ok ? 'OK' : 'NOT FOUND', $version, $name;
 	}
     }
+}
+
+# find a version of the tool in the specified range and return a command
+# (and arguments) to run to use that version;
+# if *this* version is in range, return an empty list
+sub find_version {
+    my ($min_version) = @_;
+    my $max_version;
+    my $ok = 1;
+    if ($min_version =~ s/:(.*)$//) {
+	$max_version = $1;
+	$ok = version_atleast($max_version, $VERSION);
+    }
+    $ok &&= version_atleast($VERSION, $min_version);
+    # if the running version is OK, return an empty list
+    $ok and return ();
+    # we are not in the required range, but we can not-fork ourselves
+    # to find it; we start by finding the appropriate configuration
+    for my $inc (@INC, undef) {
+	-f "$inc/NotFork/not-fork.d/not-fork/upstream.conf" or next;
+	# load our own not-forking configuration
+	set_input("$inc/NotFork/not-fork.d");
+	my $nfobj = new NotFork::Get('not-fork', undef, undef);
+	$nfobj->verbose(0);
+	defined $offline and $nfobj->offline($offline);
+	$nfobj->get($noupdate);
+	my @v = grep { version_atleast($_, $min_version) } $nfobj->all_versions;
+	defined $max_version and @v = grep { version_atleast($max_version, $_) } @v;
+	@v or die "No suitable versions found\n";
+	# great, just get the latest in range and we're done; we'll reload the
+	# configuration with the correct version number
+	my $v = pop @v;
+	$nfobj = new NotFork::Get('not-fork', $v, undef);
+	$nfobj->verbose(0);
+	defined $offline and $nfobj->offline($offline);
+	$nfobj->get(1);
+	$nfobj->install();
+	my $dir = get_output() . '/not-fork';
+	-f "$dir/bin/not-fork" or die "Internal error, sources not in $dir\n";
+	return ($^X, "-I$dir/lib", "$dir/bin/not-fork");
+    }
+    die "Cannot find not-forking configuration\n";
 }
 
