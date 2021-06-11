@@ -35,11 +35,11 @@ use NotFork::Get qw(
     recommend
 );
 
-our $VERSION = '0.4.1';
+our $VERSION = '0.4.2';
 
 my ($version, $commit, $query, $help, $noupdate, $check_version, $list_versions);
 my ($offline, $my_version, $check_prereq, $check_recommend, $find_version, @names);
-my ($use_version, $error_option, $ignore);
+my ($use_version, $ignore, $test_version, @error_option, $error_option);
 my $verbose = 1;
 my @options = (
     'c|commit=s'       => \$commit,
@@ -65,7 +65,7 @@ my @options = (
     '<>'               => \&add_name,
 );
 
-Getopt::Long::Configure(qw(bundling passthrough));
+Getopt::Long::Configure(qw(bundling));
 if (defined (my $home = $ENV{HOME})) {
     # read the first configuration file we find
     my $cfile = "$home/.config/LumoSQL/not-fork.conf";
@@ -79,7 +79,25 @@ if (defined (my $home = $ENV{HOME})) {
 	    push @config, '--' . $line;
 	}
 	close $cfh;
-	GetOptionsFromArray(\@config, @options) or usage(1);
+	my $test_version;
+	my $reported;
+	local $SIG{__WARN__} = sub {
+	    $reported or print STDERR "Error processing $cfile:\n";
+	    print STDERR $_[0];
+	    $reported = 1;
+	};
+	GetOptionsFromArray(\@config,
+	    @options,
+	    'test-version=s'   => \$test_version,
+	) or usage(1);
+	# test-version can only appear in the configuration file and it
+	# contains a path to a working copy: this helps testing new
+	# uninstalled versions; so check if we actually are that working
+	# copy and if not switch to it
+	if (defined $test_version && $0 ne "$test_version/bin/not-fork") {
+	    exec $^X, "-I$test_version/lib", "$test_version/bin/not-fork", @ARGV;
+	    die "Cannot exec tool in $test_version\n";
+	}
     }
 }
 
@@ -88,7 +106,8 @@ my @save_argv = @ARGV;
 # a "--" will terminate option processing, but we don't really want that
 # and our non-option arguments cannot start with a "-" so it is not needed
 while (@ARGV) {
-    GetOptions(@options) or usage(1);
+    local $SIG{__WARN__} = sub { push @error_option, $_[0]; };
+    GetOptions(@options) or $error_option = 1;
     @ARGV && $ARGV[0] eq '--' and shift @ARGV;
 }
 
@@ -115,8 +134,9 @@ if (defined $use_version) {
 
 # if they specified an unknown option and we haven't changed our own
 # version, report it now
-if (defined $error_option) {
-    print STDERR $error_option;
+if ($error_option || @error_option) {
+    @error_option or print STDERR "Error processing command-line options\n";
+    print STDERR @error_option;
     usage(1);
 }
 
@@ -185,22 +205,17 @@ if ($check_prereq) {
 
 sub add_name {
     my ($name) = @_;
-    if ($name =~ /^-/) {
-	# this would be an invalid option, but if we end up having
-	# --use-version it may actually be valid for the target
-	# version; so we only record this
-	defined $error_option or $error_option = "Unknown option: $name\n";
-	return;
-    }
-    defined $version && defined $commit and usage();
+    defined $version && defined $commit
+	and usage(1, "Cannot provide both VERSION and COMMIT\n");
     push @names, [$name, $version, $commit];
     undef $version;
     undef $commit;
 }
 
 sub usage {
-    my ($code) = @_;
+    my ($code, @msgs) = @_;
     my $fh = $code ? \*STDERR : \*STDOUT;
+    print $fh @msgs;
     print $fh "This is $Script version $VERSION\n\n";
     print $fh "Usage: $Script [options] [NAME]...\n";
     print $fh "\n";

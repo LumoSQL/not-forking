@@ -17,6 +17,7 @@ Table of Contents
    * [Modification definition file](#modification-definition-file-)
    * [Example Configuration directory](#example-configuration-directory-)
    * [Not-forking tool](#not-forking-tool-)
+   * [Fragment-diff tool](#fragment-diff-tool-)
 
 Not-Forking Upstream Source Code Tracker <a name="not-forking-upstream-source-code-tracker-"></a>
 ========================================
@@ -342,25 +343,25 @@ system; another use of these conditions is to identify versions in which
 substantial upstream changes make it difficult to specify a modification
 which works for every possible version.
 
+If a file is modified by more than one modification definition file, the
+standard ordering of the files determine the order the modifications are
+applied; this means that anything which replaces a file with a whole new
+one (as the "replace" method described below does), this is normally in
+a file which is very early in the lexycographic order, as it would make
+no sense to put it at the end where it can undo any previous modifications.
+
 The following key is currently understood:
 
-- `method`; the method used to specify the modification; currently, the
-value can be one of: `patch`, indicating that the final part of the file is
-in a format suitable for passing as standard input to the "patch" program;
-`replace` indicating that one or more files in the upstream must be
-completely replaced; the final part of the file contains one or more
-lines with format "old-file = new-file", where both are relative paths,
-the first relative to the root of the extracted upstream sources; the
-second path is relative to the configuration directory; `sed` indicating
-a sed-like set of replacements, with the final part of the file
-containing likes with format "file-glob: regular-expression = replacement"
-(the regular expression can contain spaces and equal signs if they are
-quoted with a backslash); the replacement is always done on the whole
-file at once.
+- `method`; the method used to specify the modification; the
+subsections of this section describe the possible different values.
 
-Other keys are interpreted depending on the value of `method`; there are
-currently no other keys for the `replace` and `sed` methods, and the
-following for the `patch` method:
+Other keys are interpreted depending on the value of `method`.
+
+## the "patch" method
+
+The final part of the modification definition file is
+in a format suitable for passing as standard input to the "patch" program;
+the following additional keys are understood in the initial part:
 
 - `options`: options to pass to the "patch" program (default: "-Nsp1")
 - `list`: extra options to the "patch" program to list what it would do
@@ -369,15 +370,63 @@ what changes; the default currently assumes the "patch" program provided
 by most Linux distributions, or the "gpatch" program available as a
 package for the BSDs).
 
-If a file is modified by more than one method, these are executed in
-the sequence determined by the ordering of the modification definition
-files, so for example a `replace` method only makes sense if it appears
-first (otherwise it undoes all previous changes).
+## the "fragment patch" method
+
+The final part of the modification definition file is a series of
+patches which will be applied to sections of files rather than whole
+files; this may make it easier to provide a patch working on many
+versions of upstream sources by replacing the simple context (a few
+lines before and after the part to be modified) by a potentially more
+complex processing (for example, finding a particular function, or
+an easily identifiable block of code).
+
+The [fragment-diff tool](#fragment-diff-tool-) can generate these starting
+from an "old" and a "new" version of a file and optionally a set of
+regular expressions which determine how to split a source into fragments.
+
+Since this method uses the "patch" program on each fragment, it also
+accepts the same options as the "patch" method described above.
+
+## the "replace" method
+
+This method indicates that one or more files in the upstream must be
+completely replaced; the final part of the file contains one or more
+lines with format "old-file = new-file", where both are relative paths,
+the first relative to the root of the extracted upstream sources; the
+second path is relative to the configuration directory.
+
+There are no special options in the initial part of the modification
+specification file.
+
+## the "append" method
+
+This method indicates that some extra text needs to be appended to an
+existing file; the final part is one or more blocks, separated by
+lines of dashes; the block starts with a file name (relative to the
+root of the extracted upstream sources) followed by the text to add;
+if a line containing just dashes needs to be added, prepend a single
+dash and space, for example to add the line "----" specify it as
+"- ----".
+
+There are no special options in the initial part of the modification
+specification file.
+
+## the "sed" method
+
+This method uses a sed-like set of replacements, with the final part of the file
+containing likes with format "file-glob: regular-expression = replacement"
+(the regular expression can contain spaces and equal signs if they are
+quoted with a backslash); the replacement is always done on the whole
+file at once.
+
+There are no special options in the initial part of the modification
+specification file.
 
 # Example Configuration directory <a name="example-configuration-directory-"></a>
 
 This set of files obtains SQLite sources and replaces `btree.c` and `btreeInt.h`
-with the ones from sqlightning, and applying a patch to `vdbeaux.c`:
+with the ones from sqlightning, applying a patch to `vdbeaux.c` and adding
+a line at the end of the (original) `btree.h`
 
 File `upstream.conf`:
 
@@ -425,6 +474,23 @@ method = patch
 ```
 
 </b>
+
+
+File `btree.h.mod`:
+
+
+<b>
+
+```
+method = append
+--
+src/btree.h
+
+#include "lumo-btree-additions.h"
+```
+
+</b>
+
 
 Files `files/btree.c` and `files/btreeInt.h`: the entire files with new contents.
 
@@ -537,6 +603,12 @@ of INPUT\_DIRECTORY. In this special case, any VERSION or COMMIT\_ID
 specified will apply to all rather than just the name immediately
 following them.
 
+The program will refuse to overwrite the output directory if it cannot
+determine that it has been created by a previous run and that files have
+not been modified since; in this case, delete the output directory
+completely, or rename it to something else, and run the program again.
+There is currently no option to override this safety feature.
+
 The tool looks for a configuration file located at
 `$HOME/.config/LumoSQL/not-fork.conf` to read defaults; if the file exists
 and is readable, any non-comment, non-empty lines are processed before
@@ -553,11 +625,11 @@ would change the default cache from `.cache/LumoSQL/not-fork` in the user's
 home directory to the above directory inside `/var/cache`; it can still
 be overridden by specifying `-c`/`--cache` on the command line.
 
-The program will refuse to overwrite the output directory if it cannot
-determine that it has been created by a previous run and that files have
-not been modified since; in this case, delete the output directory
-completely, or rename it to something else, and run the program again.
-There is currently no option to override this safety feature.
+To help testing the tool, a special option `--test-version=DIRECTORY` can
+only appear in the configuration file, not the command line, and tells the
+tool to run the program and libraries found in that directory instead of
+itself: the directory is expected to be a working copy such as obtained
+from fossil.
 
 We plan to add logging to the not-forking tool, in which all messages are
 written to a log file (under control of configuration), while the subset
@@ -588,4 +660,114 @@ file): instead of always defaulting to `--update`, the tool would check
 the time of the last ypdate, and default to `--no-update` if that time
 is "recent"; this is not yet implemented, and also we need to decide what
 "recent" actually means in this context.
+
+# Fragment-diff tool <a name="fragment-diff-tool-"></a>
+
+This command-line tool can help generating files for the "fragment\_patch"
+modification method; the generic usage is:
+
+<b>
+```
+fragment-diff \[OPTIONS\] OLD NEW NAME \[OLD NEW NAME\]...
+```
+</b>
+
+where `OLD` and `NEW` are the two files to compare, and `NAME` is the name
+which will be written in the fragment patch; so for example:
+
+<b>
+```
+fragment-diff orig/vdbe.c new/vdbe.c src/vdbe.c orig/pragma.c new/pragma.c src/pragma.c
+```
+</b>
+
+will compare two files in the `orig` and `new` directories, and emit a fragment
+patch to convert the `orig` one into the `new` one; the patch itself will refer
+to the files as though they are found in the `src` directory (this command is
+actually what generated the file `vdbe-changes.mod` in LumoSQL).
+
+The following options are currently accpted by the program:
+
+- `-h` `-?` `--help`
+Brief summary of command-line options
+- `-oFILE` `--output=FILE`
+Output the fragment patch to `FILE` (default: standard output)
+- `-a` `--append`
+Append to the file specified by `-o` rather than overwriting it; this
+has no effect when sending output to standard output
+- `-x LINE` `--extra=LINE`
+Add `LINE` to the initial part of the generated fragment patch; this
+can be used to add extra options to a modification specification file;
+this is ignored when appending, as the initial part of the file will
+not be rewritten; this option can be repeated to add more than one line
+- `-v` `--version`
+Show the program's version
+- `-tFILE` `--template=FILE`
+Reads patterns from `FILE`: see below for more information
+- `-bNAME` `--builtin-template=NAME`
+Reads patterns from the tool's own library, looking for the one identified
+by `NAME`: see below for more information
+- `--verbose`
+Mention files which do not differ at all; without this option, they
+are silently ignored
+
+The tool requires patterns to split the files into fragments; by default,
+if no patterns are provided, this will consider the whole file as a
+single fragment, and the output will be similar to the one produced by
+the standard "diff" program.
+
+Patterns can be added by using `-b` to add all patterns from the program's
+own library, or `-t` to add them from a file; currently, the program's
+own library is empty, but there are plans to develop patterns for common
+cases like splitting C programs into functions. These two options can
+be repeated as many times as they are required.
+
+To add patterns with `-t` just list regular expressions, one per line,
+in the file (comments starting with `#` and blank lines are ignored);
+a fragment starts on each line in the file which matches the pattern;
+each pattern must contain a captured sub-pattern which will be used to
+identify it if it occurs more than once: for example the pattern:
+
+```
+^((?:static\s+)?(?:void|int)\s+\S+)\b
+```
+
+will match lines like:
+
+```
+static void func1(int a, int b);
+int func2(void);
+```
+
+and the captured sub-patterns will be:
+
+```
+static void func1
+int func2
+```
+
+respectively: these will identify these two functions even though the
+pattern is likely to match many more lines in a C program source.
+
+Another tool, `fragment-patch`, can be used to apply the output of this
+tool directly, rather than as part of the extraction of upstream sources;
+call it using:
+
+
+<b>
+```
+fragment-patch \[OPTIONS\] PATCH_FILE [PATCH_FILE]...
+```
+</b>
+
+Updates all files mentioned in any of the `PATCH_FILE`s provided (note
+that this overwrites the original files, just like the standard
+"patch" program). Options are:
+
+- `-h` `-?` `--help`
+Brief summary of command-line options
+- `-dDIR` `--dir=DIR`
+Looks for files to patch in `DIR` rather than the current directory
+- `-v` `--version`
+Show the program's version
 

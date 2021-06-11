@@ -1,0 +1,309 @@
+#!/usr/bin/perl -w
+
+# Copyright 2021 The LumoSQL Authors, see LICENSES/MIT
+#
+# SPDX-License-Identifier: MIT
+# SPDX-FileCopyrightText: 2021 The LumoSQL Authors
+# SPDX-ArtifactOfProjectName: not-forking
+# SPDX-FileType: Code
+# SPDX-FileComment: Original by Claudio Calvelli, 2021
+
+# LumoSQL "fragment-diff" tool; helps determining a "fragment patch",
+# which is a form of source patching more resilient to changes to
+# the original sources than a traditional patch.
+
+# See the /doc directory for more information about this tool
+
+use strict;
+use FindBin qw($Script);
+use File::Temp 'tempdir';
+use Getopt::Long qw(GetOptions);
+use NotFork::Method::Fragment_patch qw(quote);
+
+our $VERSION = '0.4.2';
+
+my ($version, $output, $help, $verbose, $append, @template, @extra);
+my @options = (
+    'h|?|help'             => \$help,
+    'o|output=s'           => \$output,
+    'verbose'              => \$verbose,
+    'quiet|q'              => sub { $verbose = 0 },
+    'a|append'             => \$append,
+    't|template=s'         => \&add_template,
+    'b|builtin-template=s' => \&add_builtin,
+    'x|extra=s'            => \@extra,
+    'v|version'            => \$version,
+);
+
+Getopt::Long::Configure(qw(bundling passthrough));
+GetOptions(@options) or usage(1);
+@ARGV == 0 || (@ARGV % 3) and usage(1, "Must specify a list of triples\n");
+
+$help and usage(0);
+
+if (defined $version) {
+    print "$VERSION\n";
+    exit 0;
+}
+
+$append && ! defined $output and usage(1, "Cannot specify -a without -o");
+
+# if we are writing output, open a temporary file now
+my ($temp_name, $temp_handle);
+if (defined $output) {
+    ($temp_name = $output) =~ s|/([^/])*$|/.$1.tmp|;
+    open($temp_handle, '>', $temp_name) or die "$temp_name: $!\n";
+    if ($append) {
+	open(ORIG, '<', $output) or die "$output: $!\n";
+	# XXX we could check if the original file looks like the right thing
+	while (<ORIG>) {
+	    print $temp_handle $_ or die "$temp_name: $!\n";
+	}
+	close ORIG;
+    }
+} else {
+    $temp_handle = \*STDOUT;
+    $temp_name = '(standard output)';
+}
+
+# print preamble
+if (! $append) {
+    print $temp_handle <<EOF or die "$temp_name: $!\n";
+# automatically generated file for not-forking fragment_patch
+
+method = fragment_patch
+EOF
+    for my $extra (@extra) {
+	print $temp_handle "$extra\n" or die "$temp_name: $!\n";
+    }
+    print $temp_handle "\n-----\n" or die "$temp_name: $!\n";
+}
+
+# now process files, a triple at a time
+my $dir = File::Temp->newdir(CLEANUP => 1);
+while (@ARGV) {
+    my $from = shift @ARGV;
+    my $to = shift @ARGV;
+    my $name = shift @ARGV;
+    stat $from && -r _ or die "$from: $!\n";
+    stat $to && -r _ or die "$to: $!\n";
+    open(DIFF, '-|', 'diff', '-rC0', $from, $to) or die "diff: $!\n";
+    my @diffs = ();
+    my $stars = <DIFF>;
+    if (defined $stars) {
+	$stars =~ /^\*\*\*\s/ or die die "diff: no *** line\n";
+	my $minus = <DIFF>;
+	defined $minus && $minus =~ /^---\s/ or die die "diff: no 000 line\n";
+	while (<DIFF>) {
+	    /^\*{4,}/ or next;
+	    $stars = <DIFF>;
+	    $stars =~ /^\*\*\*\s+(\d+)(?:,(\d+))?\s/ or die die "diff: no *** line\n";
+	    my $fl = $1;
+	    my $fc = defined $2 ? ($2 - $1 + 1) : 1;
+	    $minus = <DIFF>;
+	    $minus =~ /^---\s+(\d+)(?:,(\d+))?\s/ or die die "diff: no --- line\n";
+	    my $tl = $1;
+	    my $tc = defined $2 ? ($2 - $1 + 1) : 1;
+	    push @diffs, [$fl, $fc, $tl, $tc];
+	}
+    }
+    if (!close DIFF) {
+	$! and die "diff: $!\n";
+	$? & 0x7f and die "diff killed by signal " . ($? & 0x7f) . "\n";
+	# die "diff exited with status " . ($? >> 8) . "\n";
+    }
+    if (! @diffs) {
+	$verbose and print STDERR "$name: no diffs\n";
+	next;
+    }
+    # read fragments from original file
+    open(FROM, '<', $from) or die "$from: $!\n";
+    my $fn = 0;
+    my @frags;
+    my $pos = 0;
+    while (<FROM>) {
+	$fn++;
+	for my $p (@template) {
+	    if ($_ =~ $p) {
+		@frags == 0 && $fn > 1 and push @frags, [0, 0, undef, undef, 0, undef];
+		push @frags, [$fn, 0, $p, $1, $pos, $_];
+		last;
+	    }
+	}
+    } continue {
+	$pos = tell FROM;
+    }
+    @frags == 0 and push @frags, [0, 0, undef, undef, 0, undef];
+    # find which fragments have diffs
+    seek FROM, 0, 0 or die "seek($from): $!\n";;
+    open(TO, '<', $to) or die "$to: $!\n";
+    while (@diffs) {
+	my ($fl, $fc, $tl, $tc) = @{shift @diffs};
+	# find starting and ending fragment
+	my $start = 0;
+	$start++ while $start < @frags && $frags[$start][0] < $fl;
+	my $end = $start;
+	my $fe = $fl + $fc;
+	$end++ while $end < @frags && $frags[$end][0] < $fe;
+	$start > 0 and $start--;
+	while ($start < $end) { $frags[$start++][1] = 1; }
+    }
+    # and now print all per-fragment diffs
+    for (my $fn = 0; $fn < @frags; $fn++) {
+	$frags[$fn][1] or next;
+	my ($from_line, $seen, $pattern, $value, $from_pos, $text) = @{$frags[$fn]};
+	# find corresponding fragment in output
+	my $to_pos = 0;
+	my $start_found = 0;
+	if ($from_pos > 0) {
+	    seek TO, 0, 0 or die "seek($to): $!\n";;
+	    while (<TO>) {
+		if ($_ eq $text) {
+		    $start_found = 1;
+		    last;
+		}
+		$to_pos = tell TO;
+	    }
+	}
+	# also find fragment end
+	my ($from_end, $to_end, $end_pattern);
+	my $end_found = 0;
+	if ($fn + 1 < @frags) {
+	    my ($fl, $se, $tv, $tx);
+	    ($fl, $se, $end_pattern, $tv, $from_end, $tx) = @{$frags[$fn + 1]};
+	    $to_end = tell TO;
+	    while (<TO>) {
+		if ($_ eq $tx) {
+		    $end_found = 1;
+		    last;
+		}
+		$to_end = tell TO;
+	    }
+	    $end_found or $to_end = undef;
+	}
+	push @diffs,
+	    [$from_pos, $pattern, $value, $from_end, $end_pattern, $to_pos, $to_end];
+    }
+    print $temp_handle quote($name), "\n" or die "$temp_name: $!\n";
+    for my $dp (@diffs) {
+	my ($from_pos, $pattern, $value, $from_end, $end_pattern, $to_pos, $to_end) = @$dp;
+	copy_frag('orig', \*FROM, $from, $from_pos, $from_end);
+	copy_frag('new', \*TO, $to, $to_pos, $to_end);
+	if (defined $pattern) {
+	    print $temp_handle "/$pattern/ ", quote($value), "\n"
+		or die "$temp_name: $!\n";
+	} else {
+	    print $temp_handle "start\n" or die "$temp_name: $!\n";
+	}
+	if (defined $end_pattern) {
+	    print $temp_handle "/$end_pattern/\n"
+		or die "$temp_name: $!\n";
+	} else {
+	    print $temp_handle "end\n" or die "$temp_name: $!\n";
+	}
+	open(DIFF, '-|', 'diff', '-ru', "$dir/orig", "$dir/new")
+	    or die "diff: $!\n";
+	my $minus = <DIFF>;
+	defined $minus && $minus =~ /^---\s/ or die die "diff: no --- line\n";
+	my $plus = <DIFF>;
+	defined $plus && $plus =~ /^\+\+\+\s/ or die die "diff: no +++ line\n";
+	while (<DIFF>) {
+	    print $temp_handle $_ or die "$temp_name: $!\n";
+	}
+	print $temp_handle "---\n" or die "$temp_name: $!\n";
+	if (!close DIFF) {
+	    $! and die "diff: $!\n";
+	    $? & 0x7f and die "diff killed by signal " . ($? & 0x7f) . "\n";
+	    # die "diff exited with status " . ($? >> 8) . "\n";
+	}
+    }
+    close TO;
+    close FROM;
+    print $temp_handle "-----\n" or die "$temp_name: $!\n";
+}
+
+if (defined $output) {
+    close $temp_handle or die "$temp_name: $!\n";
+    rename($temp_name, $output) or die "rename($temp_name, $output): $|\n";
+}
+
+exit 0;
+
+sub copy_frag {
+    my ($dest, $handle, $name, $pos, $end) = @_;
+    open(FRAG, '>', "$dir/$dest") or die "$dir/$dest: $!\n";
+    seek $handle, $pos, 0 or die "seek($name): $!\n";
+    my $buffer = ' ' x 4096;
+    if (defined $end) {
+	my $todo = $end - $pos;
+	my $buffer = ' ' x 4096;
+	while ($todo > 0) {
+	    my $size = $todo < 4096 ? $todo : 4096;
+	    my $done = read $handle, $buffer, $size;
+	    defined $done or die "$name: $!\n";
+	    $done < $size and die "$name: short read ($size, $done)\n";
+	    print FRAG $buffer or die "$dir/$dest: $!\n";
+	    $todo -= $size;
+	}
+    } else {
+	while (1) {
+	    my $done = read $handle, $buffer, 4096;
+	    defined $done or die "$name: $!\n";
+	    $done or last;
+	    print FRAG $buffer or die "$dir/$dest: $!\n";
+	}
+    }
+    close FRAG or die "$dir/$dest: $!\n";
+}
+
+sub add_template {
+    my ($opt, $input) = @_;
+    open(TEMPLATE, '<', $input) or die "$input: $!\n";
+    while (<TEMPLATE>) {
+	chomp;
+	/^\s*$/ and next;
+	/^\s*#/ and next;
+	my $re = qr/$_/ or die "$input: $_: $!\n";
+	push @template, $re;
+    }
+    close TEMPLATE;
+}
+
+sub add_builtin {
+    my ($opt, $name) = @_;
+    my $module = 'NotFork::FragmentDiff::Template::' . ucfirst(lc($name));
+    eval "use $module";
+    $@ and die "Invalid builtin template \"$name\"\n";
+    push @template, $module->patterns;
+}
+
+sub usage {
+    my $code = shift;
+    my $fh = $code ? \*STDERR : \*STDOUT;
+    print $fh "$_\n" for @_;
+    print $fh "This is $Script version $VERSION\n\n";
+    print $fh "Usage: $Script [options] [--] ORIGINAL MODIFIED NAME [ORIGINAL MODIFIED NAME]...\n";
+    print $fh "\n";
+    print $fh "-tFILE --template=FILE\n";
+    print $fh "    Specify a template to use; can be repeated to merge templates\n";
+    print $fh "-bNAME --builtin-template=NAME\n";
+    print $fh "    Like -t, but uses a built-in template instead of reading a file\n";
+    print $fh "-oFILE --output=FILE\n";
+    print $fh "    Specify output file, default is to output to standard output\n";
+    print $fh "-a --append\n";
+    print $fh "    with \"-o\", appends to file instead of overwriting\n";
+    print $fh "-xLINE --extra=LINE\n";
+    print $fh "    Adds LINE to the initial part of the generated file, for example\n";
+    print $fh "    to add a condition on version numbers etc; can be repeated to add\n";
+    print $fh "    more than one line\n";
+    print $fh "-v --version\n";
+    print $fh "    show the program's version\n";
+    print $fh "--verbose\n";
+    print $fh "    Report identical sources (default: they are silently skipped\n";
+    print $fh "\n";
+    print $fh "After the options, files must be specified in triples, an original\n";
+    print $fh "unchanged file, a new version of the same file and a file name used\n";
+    print $fh "during patching\n";
+    exit $code;
+}
+

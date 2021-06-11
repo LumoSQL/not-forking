@@ -1,0 +1,89 @@
+#!/usr/bin/perl -w
+
+# Copyright 2021 The LumoSQL Authors, see LICENSES/MIT
+#
+# SPDX-License-Identifier: MIT
+# SPDX-FileCopyrightText: 2021 The LumoSQL Authors
+# SPDX-ArtifactOfProjectName: not-forking
+# SPDX-FileType: Code
+# SPDX-FileComment: Original by Claudio Calvelli, 2021
+
+# LumoSQL "fragment-patch" tool; applies a "fragment patch" to a file;
+# this is a standalone tool to make the same changes as the module
+# which processes fragment-patch modifications while extracting sources
+
+# See the /doc directory for more information about this tool
+
+use strict;
+use FindBin qw($Script);
+use Getopt::Long qw(GetOptions);
+use NotFork::Get;
+use NotFork::Method::Fragment_patch;
+
+our $VERSION = '0.4.2';
+
+my ($version, $basedir, $help);
+my @options = (
+    'h|?|help'             => \$help,
+    'd|dir=s'              => \$basedir,
+    'v|version'            => \$version,
+);
+
+Getopt::Long::Configure(qw(bundling passthrough));
+GetOptions(@options) or usage(1);
+@ARGV == 0 and usage(1, "Must specify a list of fragment patches to apply\n");
+
+$help and usage(0);
+
+if (defined $version) {
+    print "$VERSION\n";
+    exit 0;
+}
+
+# now process files, a triple at a time
+for my $patch (@ARGV) {
+    my @mod = ();
+    my %get = ( mod => \@mod );
+    NotFork::Get::_load_modfile(\%get, $patch);
+    # later we may decide to have a generic command-line tool to apply
+    # any not-forking modifications; however for now we only accept
+    # a fragment_patch because we know how to poke its internals and we
+    # know that it works without a VCS object etc
+    for my $mod (@mod) {
+	ref $mod or die "Invalid result from NotFork::Get: not a reference\n";
+	'NotFork::Method::Fragment_patch' eq ref $mod
+	    or die "$patch: Invalid modification file, not a fragment patch\n";
+    }
+    for my $mod (@mod) {
+	$mod->apply(undef, undef, '', \&c_replace, \&c_edit, undef, undef);
+    }
+}
+
+exit 0;
+
+sub c_edit {
+    return defined $basedir ? $basedir : '/';
+}
+
+my %done;
+sub c_replace {
+    my ($name) = @_;
+    exists $done{$name} and return;
+    print "Patching file ", (defined $basedir ? "$basedir/" : ''), "$name\n";
+    $done{$name} = undef;
+}
+
+sub usage {
+    my $code = shift;
+    my $fh = $code ? \*STDERR : \*STDOUT;
+    print $fh "$_\n" for @_;
+    print $fh "This is $Script version $VERSION\n\n";
+    print $fh "Usage: $Script [options] [--] PATCH_FILE ...\n";
+    print $fh "\n";
+    print $fh "-dDIR --dir=DIR\n";
+    print $fh "    Directory containing the files to patch, default current directory\n";
+    print $fh "-v --version\n";
+    print $fh "    show the program's version\n";
+    exit $code;
+}
+

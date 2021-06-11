@@ -14,7 +14,7 @@ WriteMakefile(
     VERSION_FROM  => 'bin/not-fork',
     AUTHOR        => 'Claudio Calvelli',
     PMLIBDIRS     => [ 'lib' ],
-    EXE_FILES     => [ 'bin/not-fork' ],
+    EXE_FILES     => [ qw(bin/not-fork bin/fragment-diff bin/fragment-patch) ],
     LICENSE       => 'MIT',
     ABSTRACT      => 'merge multiple upstreams without forking them',
 );
