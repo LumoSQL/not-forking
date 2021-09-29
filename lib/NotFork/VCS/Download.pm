@@ -119,7 +119,7 @@ sub set_version {
 		$verbose > 2 and push @cmd, '-v';
 		$verbose < 1 and push @cmd, '-s';
 		push @cmd, '-o', $dstfile, $url;
-	    } elsif (defined (my $wget = find('wget'))) {
+	    } elsif (defined (my $wget = _find('wget'))) {
 		@cmd = ($wget);
 		$verbose > 2 and push @cmd, '-v';
 		$verbose < 1 and push @cmd, '-nv';
