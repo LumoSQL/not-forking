@@ -164,7 +164,13 @@ sub set_version {
 	my $extract_pipe = join(' | ', 'cd "$DSTDIR"; cat "$SRCFILE"', @extract_pipe);
 	$obj->{verbose} > 1 and print "Unpacking $obj->{name} $version...\n";
 	if (system($extract_pipe) != 0) {
-	    $? == -1 and die "Cannot unpack $dstfile\n";
+	    if (($? == -1) or ($? == 512)) {
+		# gzip returns 1 on error not the more usual -1.
+		# tar seems to translate this to 512 so as not to
+		# be confused with tar's own error code 1
+		$? = -1;
+		die "Cannot unpack $dstfile\n";
+	    }
 	    $? & 0x7f and die "unpack died with signal " . ($? & 0x7f) . "\n";
 	    die "unpack exited with status " . ($? >> 8) . "\n";
 	}
