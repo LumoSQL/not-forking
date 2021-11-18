@@ -8,8 +8,23 @@
 
 # The Not-Forking Tool
 
-Not-forking avoids duplicating the source code of one project within another
-project, where the projects are external to each other. 
+Not-forking lets you integrate similar but non-diffable codebases almost as if they
+are diffable and mergeable.  Not-Forking is a kind of patch/sed/diff/cp/mv rolled into one,
+able to monitor and pull from all kinds of upstreams.  Not-Forking also
+understands and can compare many different human-readable styles of version
+numbering.
+
+Not-Forking produces a buildable tree from inputs that would otherwise need
+manual merging, or an algorithm so specific that it would become its own
+project. Rather than adding intelligence to a diff tool, Not-Forking gets trees
+in a condition where diff will work. To do that it needs some guidance from a
+config file. Of course, at times there will be a merge conflict that requires
+human intervention, and since Not-Forking uses all the ordinary VCS and diff
+tools, that is a normal merge resolution process.
+
+If you are maintaining a codebase or configuration files that are mostly *also*
+maintained elsewhere, Not-Forking could be the answer for you. Not-Forking was
+designed as a build tool, and can remove a lot of build system complexity. 
 
 Not-forking **avoids project-level forking** by largely automating change management in ways that 
 [version control systems](https://en.wikipedia.org/wiki/Distributed_version_control) such as 
