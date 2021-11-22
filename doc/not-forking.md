@@ -10,7 +10,7 @@
 Table of Contents
 =================
 
-   * [Not-Forking Upstream Source Code Tracker](#not-forking-upstream-source-code-tracker)
+   * [Not-forking Upstream Source Code Tracker](#not-forking-upstream-source-code-tracker)
    * [Forking regarded as bad](#forking-regarded-as-bad)
    * [Overall not-forking configuration](#overall-not-forking-configuration-)
    * [Upstream definition file](#upstream-definition-file-)
@@ -19,14 +19,14 @@ Table of Contents
    * [Not-forking tool](#not-forking-tool-)
    * [Fragment-diff tool](#fragment-diff-tool-)
 
-Not-Forking Upstream Source Code Tracker <a name="not-forking-upstream-source-code-tracker-"></a>
+Not-forking Upstream Source Code Tracker <a name="not-forking-upstream-source-code-tracker-"></a>
 ========================================
 
-Not-Forking semi-automatically incorporates software from upstream projects by
+Not-forking semi-automatically incorporates software from upstream projects by
 tracking and merging. Designed for use in build and test systems, Not-forking
 can combine an arbitary number of upstreams accessible over the internet by
 any or all of [git](https://git-scm.org), [fossil](https://fossil-scm.org) and
-web download. Not-Forking was originally developed for the 
+web download. Not-forking was originally developed for the 
 [LumoSQL project](https://lumosql.org/src/lumosql) and is 
 now fully independent.
 
