@@ -221,7 +221,7 @@ required modules are available where your perl installation expects to
 find them.
 
 You might be wondering about runtime dependencies. That is covered in the
-full documentation, but in brief, not-fork knows what is needed for each of
+[full documentation](doc/not-forking.md), but in brief, not-fork knows what is needed for each of
 many different scenarios and it does not need to be addressed now. That 
 means you don't need to worry about what not-fork might be used for when
 you install it. Currently not-fork can use access methods including 
