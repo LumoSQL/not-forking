@@ -518,8 +518,10 @@ sub recommend {
 sub check_prereq {
     @_ == 2 or croak "Usage: GET->check_prereq(RESULT)";
     my ($obj, $result) = @_;
-    my $vcs = $obj->{vcs};
-    $vcs->check_prereq($result);
+    for my $block (@{$obj->{blocks}}) {
+	my $vcs = $block->{vcs};
+	$vcs->check_prereq($result);
+    }
     if (exists $obj->{mod}) {
 	for my $mobj (@{$obj->{mod}}) {
 	    $mobj->check_prereq($result);
