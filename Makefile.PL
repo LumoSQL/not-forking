@@ -17,6 +17,10 @@ WriteMakefile(
     EXE_FILES     => [ qw(bin/not-fork bin/fragment-diff bin/fragment-patch) ],
     LICENSE       => 'MIT',
     ABSTRACT      => 'merge multiple upstreams without forking them',
+    PREREQ_PM     => {
+	'FindBin' => 0,
+	'Digest::SHA' => 0,
+    },
 );
 
 # check for "recommended" packages
