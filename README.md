@@ -194,14 +194,32 @@ be used for testing. As of version 0.4, directory lib/NotFork/not-fork.d contain
 example configuration for the tool itself, used to find a specific version
 even if different from the one installed.
 
-The Perl module Text::Glob is needed. Many operating systems package it under the name libtext-glob-perl.
-For example, on Debian or Ubuntu systems, type:
+## Perl Modules
+
+The default Perl installation on Debian/Ubuntu is perl-base, and on Fedora/Red
+Hat is perl-core. These have nearly all the Perl modules required except for Text::Glob.
+
+For example, on a Debian or Ubuntu system, as root type:
 
 ```
-sudo apt install libtext-glob-perl
+# apt install libtext-glob-perl
 ```
 
-To download, you can use `fossil clone` or `git clone`, or,  to download with wget:
+Or on a Fedora/Red Hat system, as root type:
+
+```
+# dnf install perl-text-glob
+```
+
+On minimal operating systems such as often used with [Docker](https://docker.io) there is just
+a basic Perl package present. You will need to add other modules including ExtUtils::MakeMaker,
+Digest::SHA, Perl::Git, File::Path and Perl::FindBin .
+
+Not-forking will inform you of any missing Perl modules.
+
+## Download and Install
+
+To download Not-forking, you can use `fossil clone` or `git clone`, or,  to download with wget:
 
 ```
 wget -O- https://lumosql.org/src/not-forking/tarball/trunk/Not-forking-trunk.tar.gz | tar -zxf -
@@ -215,6 +233,18 @@ perl Makefile.PL
 make
 sudo make install       # You need root for this step, via sudo or otherwise
 ```
+
+If you are on a minimal operating system you may be missing some Perl modules
+as decsribed above. The command ```perl Makefile.PL``` will fail with a helpful
+message if you are missing modules needed to build Not-forking. Once you have
+satisfied the Not-forking *build* dependencies, you can check that Not-forking
+has everything it could possibly need by typing:
+
+```
+not-fork --check-recommend
+```
+
+and fixing anything reported as missing, or which is too old in cases where that matters.
 
 At which point the `not-fork` command is installed in the system and its
 required modules are available where your perl installation expects to
