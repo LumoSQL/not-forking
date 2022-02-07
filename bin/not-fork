@@ -239,10 +239,10 @@ sub usage {
     print $fh "    error messages; higher number are only useful for debugging or to\n";
     print $fh "    know exactly what the program does; --quiet is the same as\n";
     print $fh "    --verbose=0\n";
-    print $fh "--update | --no-update\n";
+    print $fh "--update | -n --no-update\n";
     print $fh "    --no-update skips updates from upstream if there is already a cached\n";
     print $fh "    version; --update is the default action of checking for upstream\n";
-    print $fh "    updates before extracting the sources\n";
+    print $fh "    updates before extracting the sources (-n is equivalent to --no-update)\n";
     print $fh "--online | --offline\n";
     print $fh "    --offline skips any operation which needs to access the network;\n";
     print $fh "    this may result in the program stopping with an error if the data\n";

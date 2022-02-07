@@ -687,7 +687,6 @@ sub get {
 	my $vcs = $block->{vcs};
 	my $vl = $obj->{verbose} && $obj->{verbose} > 2;
 	make_path($cache, { verbose => $vl, mode => 0700 });
-	my $clfh = _lock('>>', "$cache/.lock", 'cache directory');
 	my $cd = $block->{cache} = "$cache/$block->{hash}";
 	my $vlfh;
 	if (-d $cd) {
@@ -699,14 +698,24 @@ sub get {
 		or die "Invalid cache directory $cd\n";
 	} else {
 	    make_path($cd, { verbose => $vl, mode => 0700 });
-	    # the next _lock() is the only thing which can create the index file,
-	    # and we are inside another lock, so we can safely use ">" and we
-	    # know we aren't going to truncate the file created by somebody else
-	    $vlfh = _lock('>', "$cd/index", "cache for $block->{cache_index}");
-	    print $vlfh "$block->{cache_index}\n" or die "$cd/index $!\n";
+	    # somebody could have created the file while we waited for the lock,
+	    # but if we open it for appending and check the file contents after
+	    # we acquire the lock, we'll know
+	    $vlfh = _lock('>>', "$cd/index", "cache for $block->{cache_index}");
+	    # opening with +>> is not necessarily supported but we can open
+	    # another file for reading...
+	    open(my $auxfh, '<', "$cd/index") or die "$cd/index: $!\n";
+	    my $index = <$auxfh>;
+	    close $auxfh;
+	    if (defined $index) {
+		chomp $index;
+		$index eq $vcs->cache_index
+		    or die "Invalid cache directory $cd\n";
+	    } else {
+		print $vlfh "$block->{cache_index}\n" or die "$cd/index $!\n";
+	    }
 	    $noupdate = undef;
 	}
-	_unlock($clfh);
 	# somebody else could lock the cache directory at this point, but
 	# we keep the lock on our bit until we've done the VCS part; there
 	# is no danger of deadlock if everybody uses this subroutine to
