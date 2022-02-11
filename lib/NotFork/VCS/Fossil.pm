@@ -108,6 +108,9 @@ sub set_version {
     my ($obj, $version) = @_;
     exists $obj->{fossil} or croak "Need to call FOSSIL->get before set_version";
     my $vv = join('', 'tag:', $obj->{version_prefix}, $version, $obj->{version_suffix});
+    # if the previous checkout was interrupted, fossil will give an error in this
+    # one; the "fossil revert" fixes that
+    _fossil_quiet($obj->{fossil}, 'revert', $vv);
     _fossil_quiet($obj->{fossil}, 'checkout', $vv);
     $obj;
 }
