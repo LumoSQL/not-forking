@@ -153,9 +153,11 @@ sub version {
     # get a checkout ID and maybe a tag from "fossil status"
     my $commit_id = undef;
     my $version = undef;
+    my $timestamp = undef;
     my $fh = _fossil_read($fossil, 0, 'status');
     while (defined (my $rl = <$fh>)) {
-	$rl =~ /^checkout:\s*(\S+)\b/ and $commit_id = $1;
+	$rl =~ /^checkout:\s*(\S+)\s+(\S+)\s+(\S+)\b/
+	    and ($commit_id, $timestamp) = ($1, "$2 $3");
 	$rl =~ s/^tags:\s*\b// or next;
 	$rl =~ s/\s+$//;
 	my @rl = split(/,\s*/, $rl);
@@ -165,9 +167,9 @@ sub version {
     # if we have the information, or else we aren't looking for an
     # approximate version, we're done
     defined $version || ! $approx
-	and return wantarray ? ($version, $commit_id) : $version;
+	and return wantarray ? ($version, $commit_id, $timestamp) : $version;
     # TODO - get approximate version
-    ($version, $commit_id);
+    ($version, $commit_id, $timestamp);
 }
 
 sub info {
@@ -178,9 +180,10 @@ sub info {
 	my $fossil = $obj->{fossil};
 	print $fh "Information for $name:\n";
 	print $fh "url = ", _fossil_get($fossil, 0, 'remote'), "\n";
-	my ($version, $commit_id) = $obj->version;
+	my ($version, $commit_id, $timestamp) = $obj->version;
 	defined $version and print $fh "version = $version\n";
 	defined $commit_id and print $fh "commit_id = $commit_id\n";
+	defined $timestamp and print $fh "commit_timestamp = $timestamp UTC\n";
 	print $fh "\n";
     } else {
 	print $fh "No information for $name\n";

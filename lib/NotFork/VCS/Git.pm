@@ -10,6 +10,7 @@ package NotFork::VCS::Git;
 
 use strict;
 use Carp;
+use POSIX 'strftime';
 use NotFork::Get qw(add_prereq prereq_program prereq_module);
 use NotFork::VCSCommon;
 
@@ -30,6 +31,7 @@ sub check_prereq {
     add_prereq($result,
 	[\&prereq_module, 'Git'],
 	[\&prereq_module, 'File::Path'],
+	[\&prereq_module, 'POSIX'],
 	[\&prereq_program, 'git', '2.22', 'version', qr/\b(\d[\.\d]*)\b/],
     );
     $obj;
@@ -188,7 +190,10 @@ sub version {
     my $commit_id = <$fh>;
     $git->command_close_pipe($fh, $c);
     defined $commit_id and chomp($commit_id);
-    ($version, $commit_id);
+    my $timestamp = $git->command_oneline('show', '--format=%ct', '-s');
+    defined $timestamp
+	and $timestamp = strftime('%Y-%m-%d %H:%M:%S', gmtime($timestamp));
+    ($version, $commit_id, $timestamp);
 }
 
 sub info {
@@ -204,9 +209,10 @@ sub info {
 	    my $branch = $git->command_oneline('branch', '--show-current');
 	    defined $branch and print $fh "branch = $branch\n";
 	};
-	my ($version, $commit_id) = $obj->version;
+	my ($version, $commit_id, $timestamp) = $obj->version;
 	defined $version and print $fh "version = $version\n";
 	defined $commit_id and print $fh "commit_id = $commit_id\n";
+	defined $timestamp and print $fh "commit_timestamp = $timestamp UTC\n";
 	print $fh "\n";
     } else {
 	print $fh "No information for $name\n";
