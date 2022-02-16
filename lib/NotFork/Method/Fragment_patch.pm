@@ -19,8 +19,8 @@ package NotFork::Method::Fragment_patch;
 use strict;
 use Carp;
 use Fcntl ':seek';
-use File::Temp 'tempdir';
 use NotFork::Method::patch_common;
+use File::Temp;
 use Exporter;
 
 our @ISA = qw(NotFork::Method::patch_common Exporter);

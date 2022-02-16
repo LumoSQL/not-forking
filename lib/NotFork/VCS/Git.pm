@@ -10,7 +10,6 @@ package NotFork::VCS::Git;
 
 use strict;
 use Carp;
-use POSIX 'strftime';
 use NotFork::Get qw(add_prereq prereq_program prereq_module);
 use NotFork::VCSCommon;
 
@@ -191,8 +190,13 @@ sub version {
     $git->command_close_pipe($fh, $c);
     defined $commit_id and chomp($commit_id);
     my $timestamp = $git->command_oneline('show', '--format=%ct', '-s');
-    defined $timestamp
-	and $timestamp = strftime('%Y-%m-%d %H:%M:%S', gmtime($timestamp));
+    if (defined $timestamp) {
+	# do a require here, rather than a use, so we can list POSIX
+	# in the prerequisites (and not fail to load it in the
+	# unlikely case it's not present)
+	require POSIX;
+	$timestamp = POSIX::strftime('%Y-%m-%d %H:%M:%S', gmtime($timestamp));
+    }
     ($version, $commit_id, $timestamp);
 }
 

@@ -31,6 +31,8 @@ our @EXPORT_OK = qw(
     version_atleast
     version_convert
     cache_hash
+    cache_list
+    remove_cache
     add_prereq
     add_prereq_or
     prereq_program
@@ -49,6 +51,44 @@ my (%checked_input, %checked_output, %checked_cache);
 sub cache_hash {
     my ($index) = @_;
     return substr(sha512_hex($index), 42, 32);
+}
+
+sub cache_list {
+    @_ == 0 or croak "Usage: NotFork::Get::cache_list";
+    _set_cache_dir();
+    my %list;
+    opendir(OD, $cache) or return ();
+    for my $ent (readdir OD) {
+	$ent eq '.' || $ent eq '..' and next;
+	$ent eq '.lock' and next;
+	my $ed = "$cache/$ent";
+	lstat $ed or next;
+	-d _ or next;
+	my $uf = "$ed/index";
+	lstat $uf or next;
+	-f _ or next;
+	open(my $fh, '<', $uf) or next;
+	my $index = <$fh>;
+	close $fh;
+	defined $index or $index = '???';
+	chomp $index;
+	$list{$ent} = $index;
+    }
+    closedir OD;
+    wantarray ? %list : \%list;
+}
+
+sub remove_cache {
+    @_ == 1 or croak "Usage: NotFork::Get::remove_cache(HASH)";
+    my ($hash) = @_;
+    _set_cache_dir();
+    lstat "$cache" or die "$cache: $!\n";
+    -d _ or die "$cache: not a directory\n";
+    lstat "$cache/$hash" or die "$cache/$hash: $!\n";
+    -d _ or die "$cache/$hash: not a directory\n";
+    lstat "$cache/$hash/index" or die "$cache/$hash/index: $!\n";
+    -f _ or die "$cache/$hash/index: not a regular file\n";
+    remove_tree("$cache/$hash");
 }
 
 sub set_input {
@@ -113,12 +153,16 @@ sub _check_output_dir {
     closedir OD;
 }
 
-sub _check_cache_dir {
-    _check_input_dir();
+sub _set_cache_dir {
     if (! defined $cache) {
 	my $hd = $ENV{HOME} or die "Cannot figure out your \$HOME\n";
 	$cache = "$hd/.cache/LumoSQL/not-fork";
     }
+}
+
+sub _check_cache_dir {
+    _check_input_dir();
+    _set_cache_dir();
     exists $checked_cache{$cache} and return;
     $checked_cache{$cache} = undef;
     _check_dir($cache, 1, 1) or return;
@@ -781,10 +825,19 @@ sub get {
 }
 
 sub all_versions {
-    @_ == 1 or croak "Usage: NOTFORK->all_versions";
-    my ($obj) = @_;
+    @_ >= 1 && @_ <= 3 or croak "Usage: NOTFORK->all_versions [(MIN [, MAX])]";
+    my ($obj, $min, $max) = @_;
     exists $obj->{all_versions} or croak "Need to call get() before all_versions()";
-    return @{$obj->{all_versions}};
+    if (defined $min) {
+	$min = _convert_version($min);
+	defined $max or return grep { $min le _convert_version($_) } @{$obj->{all_versions}};
+	$max = _convert_version($max);
+	return grep { my $x = _convert_version($_); $min le $x && $x le $max } @{$obj->{all_versions}};
+    } else {
+	defined $max or return @{$obj->{all_versions}};
+	$max = _convert_version($max);
+	return grep { _convert_version($_) le $max } @{$obj->{all_versions}};
+    }
 }
 
 sub last_version {

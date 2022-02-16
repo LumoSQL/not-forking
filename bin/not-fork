@@ -33,13 +33,16 @@ use NotFork::Get qw(
     all_names
     version_atleast
     recommend
+    cache_list
+    remove_cache
 );
 
-our $VERSION = '0.4.2';
+our $VERSION = '0.5';
 
 my ($version, $commit, $query, $help, $noupdate, $check_version, $list_versions);
 my ($offline, $my_version, $check_prereq, $check_recommend, $find_version, @names);
-my ($use_version, $ignore, $test_version, @error_option, $error_option);
+my ($use_version, $ignore, $test_version, @error_option, $error_option, $version_range);
+my ($list_cache, @remove_cache);
 my $verbose = 1;
 my @options = (
     'c|commit=s'       => \$commit,
@@ -56,12 +59,15 @@ my @options = (
     'offline'          => \$offline,
     'v|version=s'      => \$version,
     'list-versions'    => \$list_versions,
+    'version-range=s'  => \$version_range,
     'check-version=s'  => \$check_version,
     'check-prereq'     => \$check_prereq,
     'check-recommend'  => \$check_recommend,
     'V|my-version'     => \$my_version,
     'find-version=s'   => \$find_version,
     'use-version=s'    => \$use_version,
+    'list-cache'       => \$list_cache,
+    'remove-cache=s'   => \@remove_cache,
     '<>'               => \&add_name,
 );
 
@@ -173,6 +179,37 @@ if (defined $check_recommend) {
     exit $found_all ? 0 : 1
 }
 
+if (defined $list_cache) {
+    my %list = cache_list;
+    for my $hash (sort keys %list) {
+	print "$hash  $list{$hash}\n";
+    }
+    exit 0;
+}
+
+if (@remove_cache) {
+    my %list = cache_list;
+    my %index = reverse %list;
+    my $ok = 1;
+    my @rm;
+    for my $rm (@remove_cache) {
+	if (exists $list{$rm}) {
+	    push @rm, $rm;
+	} elsif (exists $index{$rm}) {
+	    push @rm, $index{$rm};
+	} else {
+	    warn "Unknown cache element: $rm\n";
+	    $ok = 0;
+	}
+    }
+    $ok or exit 1;
+    for my $rm (@rm) {
+	print "Removing   $rm  $list{$rm}\n";
+	remove_cache($rm);
+    }
+    exit 0
+}
+
 if (! @names) {
     for my $name (all_names()) {
 	push @names, [$name, $version, $commit];
@@ -189,9 +226,22 @@ for my $np (@names) {
 	$nfobj->check_prereq(\%prereq);
     } else {
 	$nfobj->get($noupdate);
-	if ($list_versions || $query) {
+	if ($list_versions || $query || $version_range) {
 	    $query and $nfobj->info(\*STDOUT);
-	    $list_versions and print map { "$_\n" } $nfobj->all_versions;
+	    if ($version_range) {
+		my ($min, $max);
+		if ($version_range =~ /^([^:]*):([^:]*)$/) {
+		    $1 eq '' or $min = $1;
+		    $2 eq '' or $max = $2;
+		} elsif ($version_range =~ /:/) {
+		    die "Invalid --version-range: \"$version_range\"\n";
+		} else {
+		    $min = $max = $version_range;
+		}
+		print map { "$_\n" } $nfobj->all_versions($min, $max);
+	    } elsif ($list_versions) {
+		print map { "$_\n" } $nfobj->all_versions;
+	    }
 	} else {
 	    $nfobj->install();
 	}
@@ -259,6 +309,11 @@ sub usage {
     print $fh "--check-recommend\n";
     print $fh "    like --check-prereq however it lists all possible dependencies\n";
     print $fh "    whether they are used for this particular project or not\n";
+    print $fh "--list-cache\n";
+    print $fh "    lists a summary of what is in the cache\n";
+    print $fh "--remove-cache=NAME\n";
+    print $fh "    removes an item from the cache; NAME can be a cache hash or a URL\n";
+    print $fh "    (respectively first and second column of the --list-cache output)\n";
     print $fh "\n";
     print $fh "-c/-v needs to be specified before each NAME, after a NAME has\n";
     print $fh "been processed, these options revert to the default\n";

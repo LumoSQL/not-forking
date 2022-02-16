@@ -581,6 +581,11 @@ list of anything missing
 looks for any dependency which could possibly be needed to use the
 program; for example this could check for `fossil` even if the current
 project only needs `git`
+- `--list-cache` lists a summary of what is kept in the cache
+- `--remove-cache=`NAME removes the named cache entry, which can
+be provided as the cache hash (first column of the output of
+`--list-cache`) or as the URL (second column of the output of
+`--list-cache`)
 
 If neither VERSION nor COMMIT\_ID is specified, the default is the latest
 available version, if it can be determined, or else an error message.

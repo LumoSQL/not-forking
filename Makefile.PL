@@ -18,8 +18,19 @@ WriteMakefile(
     LICENSE       => 'MIT',
     ABSTRACT      => 'merge multiple upstreams without forking them',
     PREREQ_PM     => {
-	'FindBin' => 0,
-	'Digest::SHA' => 0,
+	# most of these modules will always be installed, but just in case...
+	'Carp'             => 0,
+	'Digest::SHA'      => 0,
+	'Exporter'         => 0,
+	'Fcntl'            => 0,
+	'File::Copy'       => 0,
+	'File::Find'       => 0,
+	'File::Path'       => 0,
+	'File::Temp'       => 0,
+	'FindBin'          => 0,
+	'Getopt::Long'     => 0,
+	'IO::Handle'       => 0,
+	'Text::ParseWords' => 0,
     },
 );
 
