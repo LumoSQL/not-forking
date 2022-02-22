@@ -29,7 +29,7 @@ my @options = (
     'v|version'            => \$version,
 );
 
-Getopt::Long::Configure(qw(bundling passthrough));
+Getopt::Long::Configure(qw(bundling));
 GetOptions(@options) or usage(1);
 @ARGV == 0 and usage(1, "Must specify a list of fragment patches to apply\n");
 
@@ -62,7 +62,7 @@ for my $patch (@ARGV) {
 exit 0;
 
 sub c_edit {
-    return defined $basedir ? $basedir : '/';
+    return defined $basedir ? $basedir : '.';
 }
 
 my %done;
