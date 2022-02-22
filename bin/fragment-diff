@@ -93,7 +93,10 @@ while (@ARGV) {
     if (defined $stars) {
 	$stars =~ /^\*\*\*\s/ or die die "diff: no *** line\n";
 	my $minus = <DIFF>;
-	defined $minus && $minus =~ /^---\s/ or die die "diff: no 000 line\n";
+	while (defined $minus && $minus =~ /^!/) {
+	    $minus = <DIFF>;
+	}
+	defined $minus && $minus =~ /^---\s/ or die die "diff: no --- line\n";
 	while (<DIFF>) {
 	    /^\*{4,}/ or next;
 	    $stars = <DIFF>;
@@ -101,6 +104,9 @@ while (@ARGV) {
 	    my $fl = $1;
 	    my $fc = defined $2 ? ($2 - $1 + 1) : 1;
 	    $minus = <DIFF>;
+	    while (defined $minus && $minus =~ /^!/) {
+		$minus = <DIFF>;
+	    }
 	    $minus =~ /^---\s+(\d+)(?:,(\d+))?\s/ or die die "diff: no --- line\n";
 	    my $tl = $1;
 	    my $tc = defined $2 ? ($2 - $1 + 1) : 1;
