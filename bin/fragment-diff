@@ -147,7 +147,7 @@ while (@ARGV) {
 	my ($fl, $fc, $tl, $tc) = @{shift @diffs};
 	# find starting and ending fragment
 	my $start = 0;
-	$start++ while $start < @frags && $frags[$start][0] < $fl;
+	$start++ while $start < @frags && $frags[$start][0] <= $fl;
 	my $end = $start;
 	my $fe = $fl + $fc;
 	$end++ while $end < @frags && $frags[$end][0] < $fe;
