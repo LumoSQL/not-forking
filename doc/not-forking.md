@@ -538,6 +538,10 @@ if available.
 - `--list-versions` completes all necessary downloads but does not
 extract the sources and apply modifications, instead it shows all the
 version numbers known (these can be used as argument to `-v`/`--version`).
+- `--metadata` similar to `--list-versions` but also includes extra
+information: type of source (`git`, `fossil`, etc.), source URL,
+commit ID, commit time (any information which does not apply will
+be reported as a single `-`)
 - `--verbose=`LEVEL changes the number of messages produced; higher
 numbers may be good for debugging, but may provide a confusing amount
 of information; `--quiet` is an alias for `--verbose=`0 and disables

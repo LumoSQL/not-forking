@@ -244,7 +244,7 @@ for my $np (@names) {
 		if ($list_versions > 1) {
 		    for my $version ($nfobj->all_versions) {
 			my ($commit, $timestamp, $vcs, $url) = $nfobj->version_info($version);
-			print "$version $vcs $url $commit $timestamp\n";
+			print "$name $version $vcs $url $commit $timestamp\n";
 		    }
 		} else {
 		    print map { "$_\n" } $nfobj->all_versions;
