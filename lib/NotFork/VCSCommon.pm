@@ -106,19 +106,24 @@ my $likely_version = qr/^\d/;
 # VCS (in addition to the prefix and suffix specified by upstream.conf which
 # are repository-specific)
 sub _all_versions {
-    @_ == 4 or croak "Usage: VCS->_all_versions(FILEHANDLE, PREFIX, SUFFIX)";
-    my ($obj, $fh, $cprefix, $csuffix) = @_;
+    @_ == 4 || @_ == 5
+	or croak "Usage: VCS->_all_versions(FILEHANDLE, PREFIX, SUFFIX, [ID_FIND])";
+    my ($obj, $fh, $cprefix, $csuffix, $id_find) = @_;
     my $rprefix = $obj->{version_prefix};
     my $rsuffix = $obj->{version_suffix};
     my @versions = ();
+    my %commits = ();
     my $re = qr/^$cprefix$rprefix(.*)$rsuffix$csuffix\s*$/;
     while (defined (my $rl = <$fh>)) {
 	$rl =~ $re or next;
 	my $vn = $1;
 	$rprefix eq '' && $rsuffix eq '' && ($vn !~ $likely_version) and next;
 	push @versions, $vn;
+	defined $id_find or next;
+	$rl =~ $id_find or next;
+	$commits{$vn} = $1;
     }
-    @versions;
+    (\@versions, \%commits);
 }
 
 # filters an array of tags and returns any which look like a version number

@@ -219,12 +219,20 @@ sub version {
     $obj->{vnumber};
 }
 
+sub version_info {
+    @_ == 2 or croak "Usage: DOWNLOAD->version_info(VERSION)";
+    my ($obj, $version) = @_;
+    my $name = $obj->{name};
+    return ('-', '-', 'download', $obj->{vurl}{$version});
+}
+
 sub info {
     @_ == 2 or croak "Usage: DOWNLOAD->info(FILEHANDLE)";
     my ($obj, $fh) = @_;
     my $name = $obj->{name};
     my $vn = $obj->{vnumber};
     print $fh "Information for $name:\n";
+    print $fh "vcs = download\n";
     print $fh "version = $vn\n";
     print $fh "source = $obj->{vurl}{$vn}\n";
     print $fh "\n";

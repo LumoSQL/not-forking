@@ -704,6 +704,16 @@ sub commit {
     $obj;
 }
 
+sub version_info {
+    @_ == 2 or croak "Usage: NOTFORK->version_info(VERSION)";
+    my ($obj, $version) = @_;
+    for my $block (@{$obj->{blocks}}) {
+	my @data = $block->{vcs}->version_info($version);
+	@data and return @data
+    }
+    ();
+}
+
 sub _lock {
     my ($mode, $file, $name) = @_;
     open (my $fh, $mode, $file) or die "$file: $!\n";

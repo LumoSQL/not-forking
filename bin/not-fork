@@ -59,6 +59,7 @@ my @options = (
     'offline'          => \$offline,
     'v|version=s'      => \$version,
     'list-versions'    => \$list_versions,
+    'metadata'         => sub { $list_versions = 2 },
     'version-range=s'  => \$version_range,
     'check-version=s'  => \$check_version,
     'check-prereq'     => \$check_prereq,
@@ -240,7 +241,14 @@ for my $np (@names) {
 		}
 		print map { "$_\n" } $nfobj->all_versions($min, $max);
 	    } elsif ($list_versions) {
-		print map { "$_\n" } $nfobj->all_versions;
+		if ($list_versions > 1) {
+		    for my $version ($nfobj->all_versions) {
+			my ($commit, $timestamp, $vcs, $url) = $nfobj->version_info($version);
+			print "$version $vcs $url $commit $timestamp\n";
+		    }
+		} else {
+		    print map { "$_\n" } $nfobj->all_versions;
+		}
 	    }
 	} else {
 	    $nfobj->install();

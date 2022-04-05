@@ -137,9 +137,25 @@ sub all_versions {
     exists $obj->{fossil} or croak "Need to call FOSSIL->get before version";
     my $fossil = $obj->{fossil};
     my $fh = _fossil_read($fossil, 0, 'tag', 'ls');
-    my @versions = $obj->_all_versions($fh, '', '');
+    my ($versions, $commits) = $obj->_all_versions($fh, '', '');
     _fossil_close($fh);
-    @versions;
+    @$versions;
+}
+
+# get information about a version
+sub version_info {
+    @_ == 2 or croak "Usage: Fossil->version_info(VERSION)";
+    my ($obj, $version) = @_;
+    my $fossil = $obj->{fossil};
+    my $commit_id = undef;
+    my $timestamp = undef;
+    my $fh = _fossil_read($fossil, 0, 'info', "tag:$obj->{version_prefix}$version$obj->{version_suffix}");
+    while (defined (my $rl = <$fh>)) {
+	$rl =~ /^hash\s*:\s*(\S+)\s+(\S+)\s+(\S+)\b/
+	    and ($commit_id, $timestamp) = ($1, "$2 $3");
+    }
+    _fossil_close($fh);
+    ($commit_id, $timestamp, 'fossil', _fossil_get($fossil, 0, 'remote'));
 }
 
 # find the current version number; if the second argument is present and true,
@@ -179,6 +195,7 @@ sub info {
     if (exists $obj->{fossil}) {
 	my $fossil = $obj->{fossil};
 	print $fh "Information for $name:\n";
+	print $fh "vcs = fossil\n";
 	print $fh "url = ", _fossil_get($fossil, 0, 'remote'), "\n";
 	my ($version, $commit_id, $timestamp) = $obj->version;
 	defined $version and print $fh "version = $version\n";

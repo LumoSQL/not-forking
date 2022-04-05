@@ -158,9 +158,35 @@ sub all_versions {
     my ($obj) = @_;
     my $git = _git_any($obj, 'all_versions');
     my ($fh, $c) = $git->command_output_pipe('show-ref');
-    my @versions = $obj->_all_versions($fh, '\S+\s+refs/tags/', '');
+    my ($versions) = $obj->_all_versions($fh, '\S+\s+refs/tags/', '');
     $git->command_close_pipe($fh, $c);
-    @versions;
+    @$versions;
+}
+
+# get information about a version
+sub version_info {
+    @_ == 2 or croak "Usage: GIT->version_info(VERSION)";
+    my ($obj, $version) = @_;
+    my $git = _git_any($obj, 'version_info');
+    my ($fh, $c) = $git->command_output_pipe('show-ref', '--dereference');
+    my ($versions, $commits) = $obj->_all_versions($fh, "\\S+\\s+refs/tags/", '', qr/^(\S+)\b/);
+    $git->command_close_pipe($fh, $c);
+    exists $commits->{$version} or return ();
+    ($fh, $c) = $git->command_output_pipe('show', '--format=%ct', '-s', $commits->{$version});
+    my $timestamp;
+    while (<$fh>) {
+	chomp;
+	/^\d+$/ and $timestamp = $_;
+    }
+    $git->command_close_pipe($fh, $c);
+    if (defined $timestamp) {
+	# do a require here, rather than a use, so we can list POSIX
+	# in the prerequisites (and not fail to load it in the
+	# unlikely case it's not present)
+	require POSIX;
+	$timestamp = POSIX::strftime('%Y-%m-%d %H:%M:%S', gmtime($timestamp));
+    }
+    ($commits->{$version}, $timestamp, 'git', $obj->{repos});
 }
 
 # find the current version number; other commands fail for various
@@ -180,15 +206,18 @@ sub version {
     my $suffix = $obj->{version_suffix};
     # XXX this does not find approximate version numbers yet
     my ($fh, $c) = $git->command_output_pipe('show-ref', '--dereference');
-    my @versions = $obj->_all_versions($fh, "$oid\\s+refs/tags/", '');
+    my ($versions, $commits) = $obj->_all_versions($fh, "$oid\\s+refs/tags/", '', qr/^(\S+)\b/);
     $git->command_close_pipe($fh, $c);
-    my $version = shift @versions;
+    my $version = shift @$versions;
     defined $version and $version =~ s/\^.*$//;
     wantarray or return $version;
-    ($fh, $c) = $git->command_output_pipe('rev-parse', 'HEAD');
-    my $commit_id = <$fh>;
-    $git->command_close_pipe($fh, $c);
-    defined $commit_id and chomp($commit_id);
+    my $commit_id = $commits->{$version};
+    if (! defined $commit_id) {
+	($fh, $c) = $git->command_output_pipe('rev-parse', 'HEAD');
+	$commit_id = <$fh>;
+	$git->command_close_pipe($fh, $c);
+	defined $commit_id and chomp($commit_id);
+    }
     my $timestamp = $git->command_oneline('show', '--format=%ct', '-s');
     if (defined $timestamp) {
 	# do a require here, rather than a use, so we can list POSIX
@@ -208,6 +237,7 @@ sub info {
     eval { $git = _git_any($obj, 'info'); };
     if (defined $git) {
 	print $fh "Information for $name:\n";
+	print $fh "vcs = git\n";
 	print $fh "url = $obj->{repos}\n";
 	eval {
 	    my $branch = $git->command_oneline('branch', '--show-current');
