@@ -33,12 +33,17 @@ sub _new {
     }
     $obj->{version_prefix} = $prefix;
     $obj->{version_suffix} = $suffix;
-    my %version_map;
+    my (%version_map, %time_map);
     for my $v (keys %$options) {
-	$v =~ /^version-(.*)$/ or next;
-	$version_map{$1} = $options->{$v};
+	if ($v =~ /^version-(.*)$/) {
+	    $version_map{$1} = $options->{$v};
+	}
+	if ($v =~ /^time-(.*)$/) {
+	    $time_map{$1} = $options->{$v};
+	}
     }
     scalar(keys %version_map) and $obj->{version_map} = \%version_map;
+    scalar(keys %time_map) and $obj->{time_map} = \%time_map;
     $obj;
 }
 

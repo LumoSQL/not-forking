@@ -179,8 +179,9 @@ sub version_info {
     my ($obj, $version) = @_;
     my $git = _git_any($obj, 'version_info');
     my $id;
-    if (exists $obj->{version_map} && exists $obj->{this_version}) {
-	$id = $obj->{version_map}{$obj->{this_version}};
+    if (exists $obj->{version_map}) {
+	exists $obj->{version_map}{$version} or return ();
+	$id = $obj->{version_map}{$version};
     } else {
 	my ($fh, $c) = $git->command_output_pipe('show-ref', '--dereference');
 	my ($versions, $commits) = $obj->_all_versions($fh, "\\S+\\s+refs/tags/", '', qr/^(\S+)\b/);
@@ -289,7 +290,7 @@ sub version_map {
     @_ == 7 or croak "Usage: GIT->version_map(FILEHANDLE, VERSION, DATA)";
     my ($obj, $fh, $version, $commit, $timestamp, $git, $url) = @_;
     print $fh "version-$version = $commit\n" or die "$!\n";
-    print $fh "#  time-$version = $timestamp\n" or die "$!\n";
+    print $fh "time-$version = $timestamp\n" or die "$!\n";
     $obj;
 }
 

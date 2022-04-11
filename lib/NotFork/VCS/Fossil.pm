@@ -146,7 +146,7 @@ sub all_versions {
     exists $obj->{fossil} or croak "Need to call FOSSIL->get before version";
     my $fossil = $obj->{fossil};
     my $fh = _fossil_read($fossil, 0, 'tag', 'ls');
-    my ($versions, $commits) = $obj->_all_versions($fh, '', '');
+    my ($versions) = $obj->_all_versions($fh, '', '');
     _fossil_close($fh);
     @$versions;
 }
@@ -156,14 +156,23 @@ sub version_info {
     @_ == 2 or croak "Usage: Fossil->version_info(VERSION)";
     my ($obj, $version) = @_;
     my $fossil = $obj->{fossil};
-    my $fh;
-    if (exists $obj->{version_map} && exists $obj->{this_version}) {
-	$fh = _fossil_read($fossil, 0, 'info', $obj->{version_map}{$obj->{this_version}});
+    my $repo = _fossil_get($fossil, 0, 'remote');
+    my $tag;
+    if (exists $obj->{version_map}) {
+	exists $obj->{version_map}{$version} or return ();
+	if (exists $obj->{time_map}{$version}) {
+	    return ($obj->{version_map}{$version},
+		    $obj->{time_map}{$version},
+		    'fossil',
+		    $repo);
+	}
+	$tag = $obj->{version_map}{$version};
     } else {
-	$fh = _fossil_read($fossil, 0, 'info', "tag:$obj->{version_prefix}$version$obj->{version_suffix}");
+	$tag = "tag:$obj->{version_prefix}$version$obj->{version_suffix}";
     }
     my $commit_id = undef;
     my $timestamp = undef;
+    my $fh = _fossil_read($fossil, 0, 'info', $tag);
     while (defined (my $rl = <$fh>)) {
 	$rl =~ /^hash\s*:\s*(\S+)\s+(\S+)\s+(\S+)\b/
 	    and ($commit_id, $timestamp) = ($1, "$2 $3");
@@ -183,6 +192,7 @@ sub version {
     my ($version, $commit_id, $timestamp);
     if (exists $obj->{version_map} && exists $obj->{this_version}) {
 	$version = $obj->{this_version};
+	wantarray or return $version;
 	($commit_id, $timestamp) = $obj->version_info($version);
     } else {
 	# get a checkout ID and maybe a tag from "fossil status"
@@ -238,7 +248,7 @@ sub version_map {
     @_ == 7 or croak "Usage: FOSSIL->version_map(FILEHANDLE, VERSION, DATA)";
     my ($obj, $fh, $version, $commit, $timestamp, $git, $url) = @_;
     print $fh "version-$version = $commit\n" or die "$!\n";
-    print $fh "#  time-$version = $timestamp\n" or die "$!\n";
+    print $fh "time-$version = $timestamp\n" or die "$!\n";
     $obj;
 }
 
