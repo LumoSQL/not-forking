@@ -516,6 +516,12 @@ not-fork \[OPTIONS\] \[NAME\]...
 
 where the following options are available:
 
+- `--config FILE` (or `--config=FILE`)
+specifies a configuration file to load before processing any other
+options. If specified, this must be the first option, and the file
+must exist; if not specified, the program looks for a configuration
+file in a standard location and reads it if found (but does not
+produce an error if not found).
 - `-i`INPUT\_DIRECTORY (or `--input=`INPUT\_DIRECTORY)
 is a not-forking configuration directory as specified
 in this document; default is `not-fork.d` within the current directory
@@ -624,11 +630,12 @@ not been modified since; in this case, delete the output directory
 completely, or rename it to something else, and run the program again.
 There is currently no option to override this safety feature.
 
-The tool looks for a configuration file located at
-`$HOME/.config/LumoSQL/not-fork.conf` to read defaults; if the file exists
-and is readable, any non-comment, non-empty lines are processed before
-any command-line options with an implicit `--` prepended and with spaces
-around the first `=` removed, if present: so for example a file containing:
+The tools reads a configuration file if one is provided bu the `--config`
+command-line option, or if none is specified, it will look for one at
+`$HOME/.config/LumoSQL/not-fork.conf` and reads it if it exists; in this
+file, any non-comment, non-empty lines are processed before any command-line
+options with an implicit `--` prepended and with spaces around the first `=`
+removed, if present: so for example a file containing:
 
 <b>
 ```
@@ -639,6 +646,11 @@ cache = /var/cache/LumoSQL/not-fork
 would change the default cache from `.cache/LumoSQL/not-fork` in the user's
 home directory to the above directory inside `/var/cache`; it can still
 be overridden by specifying `-c`/`--cache` on the command line.
+
+Note that the `--config` option is handled specially, and it must be the
+first option on the command line; in particular, `config` is not valid
+in the configuration file itself (it would be too late to specify a
+different file).
 
 To help testing the tool, a special option `--test-version=DIRECTORY` can
 only appear in the configuration file, not the command line, and tells the

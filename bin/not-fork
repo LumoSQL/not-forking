@@ -41,7 +41,7 @@ our $VERSION = '0.5';
 
 my ($version, $commit, $query, $help, $noupdate, $check_version, $list_versions);
 my ($offline, $my_version, $check_prereq, $check_recommend, $find_version, @names);
-my ($use_version, $ignore, $test_version, @error_option, $error_option, $version_range);
+my ($use_version, $ignore, $test_version, @error_option, $version_range);
 my ($list_cache, @remove_cache);
 my $verbose = 1;
 my @options = (
@@ -71,51 +71,64 @@ my @options = (
     'remove-cache=s'   => \@remove_cache,
     '<>'               => \&add_name,
 );
-
 Getopt::Long::Configure(qw(bundling));
-if (defined (my $home = $ENV{HOME})) {
-    # read the first configuration file we find
+
+# if *first* option is --config, read it now
+my ($config_shift, $config_file) = (0, undef);
+if (@ARGV > 0 && $ARGV[0] =~ /^--config=(.*)$/) {
+    $config_file = $1;
+    $config_shift = 1;
+} elsif (@ARGV > 1 && $ARGV[0] eq '--config') {
+    $config_file = $ARGV[1];
+    $config_shift = 2;
+} elsif (defined (my $home = $ENV{HOME})) {
     my $cfile = "$home/.config/LumoSQL/not-fork.conf";
-    if (open (my $cfh, "<", $cfile)) {
-	my @config = ();
-	while (defined (my $line = <$cfh>)) {
-	    $line =~ /^\s*$/ and next;
-	    $line =~ /^\s*#/ and next;
-	    chomp $line;
-	    $line =~ s/\s*=\s*/=/;
-	    push @config, '--' . $line;
-	}
-	close $cfh;
-	my $test_version;
-	my $reported;
-	local $SIG{__WARN__} = sub {
-	    $reported or print STDERR "Error processing $cfile:\n";
-	    print STDERR $_[0];
-	    $reported = 1;
-	};
-	GetOptionsFromArray(\@config,
-	    @options,
-	    'test-version=s'   => \$test_version,
-	) or usage(1);
-	# test-version can only appear in the configuration file and it
-	# contains a path to a working copy: this helps testing new
-	# uninstalled versions; so check if we actually are that working
-	# copy and if not switch to it
-	if (defined $test_version && $0 ne "$test_version/bin/not-fork") {
-	    exec $^X, "-I$test_version/lib", "$test_version/bin/not-fork", @ARGV;
-	    die "Cannot exec tool in $test_version\n";
-	}
+    -f $cfile and $config_file = $cfile;
+}
+
+# if we found a configuration file in some way, use it
+if (defined $config_file) {
+    open (my $cfh, '<', $config_file) or die "$config_file: $!\n";
+    my @config = ();
+    while (defined (my $line = <$cfh>)) {
+	$line =~ /^\s*$/ and next;
+	$line =~ /^\s*#/ and next;
+	chomp $line;
+	$line =~ s/\s*=\s*/=/;
+	push @config, '--' . $line;
+    }
+    close $cfh;
+    my $test_version;
+    my $error_index = @error_option;
+    push @error_option, '';
+    local $SIG{__WARN__} = sub { push @error_option, $_[0]; };
+    GetOptionsFromArray(\@config,
+	@options,
+	'test-version=s'   => \$test_version,
+    ) or $error_option[$error_index] = "Error processing configuration file $config_file:\n";
+    # test-version can only appear in the configuration file and it
+    # contains a path to a working copy: this helps testing new
+    # uninstalled versions; so check if we actually are that working
+    # copy and if not switch to it
+    if (defined $test_version && $0 ne "$test_version/bin/not-fork") {
+	exec $^X, "-I$test_version/lib", "$test_version/bin/not-fork", @ARGV;
+	die "Cannot exec tool in $test_version\n";
     }
 }
 
 # if we see a --use-version we'll need to re-parse @ARGV so make a copy
 my @save_argv = @ARGV;
-# a "--" will terminate option processing, but we don't really want that
-# and our non-option arguments cannot start with a "-" so it is not needed
-while (@ARGV) {
-    local $SIG{__WARN__} = sub { push @error_option, $_[0]; };
-    GetOptions(@options) or $error_option = 1;
-    @ARGV && $ARGV[0] eq '--' and shift @ARGV;
+splice(@ARGV, 0, $config_shift);
+{
+    my $error_index = @error_option;
+    push @error_option, '';
+    while (@ARGV) {
+	local $SIG{__WARN__} = sub { push @error_option, $_[0]; };
+	GetOptions(@options) or $error_option[$error_index] = "Error processing command-line options:\n";
+	# a "--" will terminate option processing, but we don't really want that
+	# and our non-option arguments cannot start with a "-" so it is not needed
+	@ARGV && $ARGV[0] eq '--' and shift @ARGV;
+    }
 }
 
 # if they asked for --use-version we'll call that version...
@@ -141,10 +154,12 @@ if (defined $use_version) {
 
 # if they specified an unknown option and we haven't changed our own
 # version, report it now
-if ($error_option || @error_option) {
-    @error_option or print STDERR "Error processing command-line options\n";
-    print STDERR @error_option;
-    usage(1);
+if (@error_option) {
+    my $error = join('', @error_option);
+    if ($error ne '') {
+	print STDERR "$error\n";
+	usage(1);
+    }
 }
 
 $help and usage(0);
