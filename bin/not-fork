@@ -42,35 +42,37 @@ our $VERSION = '0.5';
 my ($version, $commit, $query, $help, $noupdate, $check_version, $list_versions);
 my ($offline, $my_version, $check_prereq, $check_recommend, $find_version, @names);
 my ($use_version, $ignore, $test_version, @error_option, $version_range);
-my ($list_cache, @remove_cache, @local_mirror);
+my ($list_cache, @remove_cache, @local_mirror, $build_upstream_lock, $use_upstream_lock);
 my $verbose = 1;
 my @options = (
-    'c|commit=s'       => \$commit,
-    'h|?|help'         => \$help,
-    'i|input=s'        => sub { set_input($_[1]) },
-    'k|cache=s'        => sub { set_cache($_[1]) },
-    'n|no-update'      => \$noupdate,
-    'update'           => sub { $noupdate = 0 },
-    'o|output=s'       => sub { set_output($_[1]) },
-    'q|query'          => \$query,
-    'verbose=i'        => \$verbose,
-    'quiet'            => sub { $verbose = 0 },
-    'online'           => sub { $offline = 0 },
-    'offline'          => \$offline,
-    'v|version=s'      => \$version,
-    'list-versions'    => \$list_versions,
-    'metadata'         => sub { $list_versions = 2 },
-    'version-range=s'  => \$version_range,
-    'check-version=s'  => \$check_version,
-    'check-prereq'     => \$check_prereq,
-    'check-recommend'  => \$check_recommend,
-    'V|my-version'     => \$my_version,
-    'find-version=s'   => \$find_version,
-    'use-version=s'    => \$use_version,
-    'list-cache'       => \$list_cache,
-    'remove-cache=s'   => \@remove_cache,
-    'local-mirror=s'   => \@local_mirror,
-    '<>'               => \&add_name,
+    'c|commit=s'           => \$commit,
+    'h|?|help'             => \$help,
+    'i|input=s'            => sub { set_input($_[1]) },
+    'k|cache=s'            => sub { set_cache($_[1]) },
+    'n|no-update'          => \$noupdate,
+    'update'               => sub { $noupdate = 0 },
+    'o|output=s'           => sub { set_output($_[1]) },
+    'q|query'              => \$query,
+    'verbose=i'            => \$verbose,
+    'quiet'                => sub { $verbose = 0 },
+    'online'               => sub { $offline = 0 },
+    'offline'              => \$offline,
+    'v|version=s'          => \$version,
+    'list-versions'        => \$list_versions,
+    'metadata'             => sub { $list_versions = 2 },
+    'version-range=s'      => \$version_range,
+    'check-version=s'      => \$check_version,
+    'check-prereq'         => \$check_prereq,
+    'check-recommend'      => \$check_recommend,
+    'V|my-version'         => \$my_version,
+    'find-version=s'       => \$find_version,
+    'use-version=s'        => \$use_version,
+    'list-cache'           => \$list_cache,
+    'remove-cache=s'       => \@remove_cache,
+    'local-mirror=s'       => \@local_mirror,
+    'build-upstream-lock'  => \$build_upstream_lock,
+    'use-upstream-lock'    => \$use_upstream_lock,
+    '<>'                   => \&add_name,
 );
 Getopt::Long::Configure(qw(bundling));
 
@@ -236,7 +238,8 @@ if (! @names) {
 %prereq = ();
 for my $np (@names) {
     my ($name, $version, $commit) = @$np;
-    my $nfobj = new NotFork::Get($name, $version, $commit);
+    my $nfobj = new NotFork::Get($name, $version, $commit,
+				 $use_upstream_lock && ! defined $build_upstream_lock);
     defined $verbose and $nfobj->verbose($verbose);
     defined $offline and $nfobj->offline($offline);
     @local_mirror and $nfobj->local_mirror(@local_mirror);
@@ -244,8 +247,9 @@ for my $np (@names) {
 	$nfobj->check_prereq(\%prereq);
     } else {
 	$nfobj->get($noupdate);
-	if ($list_versions || $query || $version_range) {
+	if ($list_versions || $query || $version_range || defined $build_upstream_lock) {
 	    $query and $nfobj->info(\*STDOUT);
+	    defined $build_upstream_lock and $nfobj->build_upstream_lock;
 	    if ($version_range) {
 		my ($min, $max);
 		if ($version_range =~ /^([^:]*):([^:]*)$/) {

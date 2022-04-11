@@ -216,8 +216,8 @@ sub _check_dir {
 }
 
 sub new {
-    @_ == 4 or croak "Usage: new NotFork::Get(NAME, VERSION, COMMIT_ID)";
-    my ($class, $name, $version, $commit) = @_;
+    @_ == 5 or croak "Usage: new NotFork::Get(NAME, VERSION, COMMIT_ID, USE_LOCK)";
+    my ($class, $name, $version, $commit, $use_lock) = @_;
     _check_input_name($name);
     (my $osname = $Config::Config{myarchname}) =~ s/^.*-//;
     my $obj = bless {
@@ -226,6 +226,7 @@ sub new {
 	offline       => 0,
 	osname        => $osname,
 	local_mirror  => [],
+	use_lock      => $use_lock,
     }, $class;
     defined $version and $obj->version($version);
     defined $commit and $obj->commit($commit);
@@ -238,6 +239,46 @@ sub DESTROY {
     for my $block (@{$obj->{blocks}}) {
 	$block->{vcslock} and _unlock($block->{vcslock});
     }
+}
+
+sub build_upstream_lock {
+    @_ == 1 or croak "Usage: NOTFORK->build_upstream_lock";
+    my ($obj) = @_;
+    exists $obj->{all_versions} or croak "Need to call get() before build_upstream_lock()";
+    my $dn = "$input/$obj->{name}";
+    my $destfile = "$dn/upstream.lock";
+    my $tempfile = "$dn/upstream.lock.tmp";
+    my @versions = @{$obj->{all_versions}};
+    eval {
+	open (my $fh, '>', $tempfile) or die "$tempfile: $!\n";
+	for my $block (@{$obj->{blocks}}) {
+	    my @leftover;
+	    my $start_block = 1;
+	    for my $version (@versions) {
+		my @data = $block->{vcs}->version_info($version);
+		if (@data) {
+		    if ($start_block) {
+			print $fh "block\n" or die "$tempfile: $!\n";
+			$block->{vcs}->upstream_info($fh);
+			$start_block = 0;
+		    }
+		    $block->{vcs}->version_map($fh, $version, @data);
+		} else {
+		    push @leftover, $version;
+		}
+	    }
+	    @versions = @leftover;
+	    $start_block or print $fh "\n" or die "$tempfile: $!\n";
+	}
+	close $fh or die "$tempfile: $!\n";
+	@versions and die "Internal error: left over versions (@versions)\n";
+	rename ($tempfile, $destfile) or die "rename($tempfile, $destfile): $!\n";
+    };
+    if ($@) {
+	unlink $tempfile;
+	die $@;
+    }
+    $obj;
 }
 
 my %required_keys_upstream = (
@@ -258,7 +299,11 @@ sub _load_config {
     my ($obj) = @_;
     my $dn = "$input/$obj->{name}";
     $obj->{directory} = $dn;
-    $obj->_load_upstream("$dn/upstream.conf");
+    if ($obj->{use_lock} && -f "$dn/upstream.lock") {
+	$obj->_load_upstream("$dn/upstream.lock");
+    } else {
+	$obj->_load_upstream("$dn/upstream.conf");
+    }
     opendir (my $dh, $dn) or die "$dn: $!\n";
     my @files = sort grep { ! /^\./ && /\.mod$/i } readdir $dh;
     closedir $dh;

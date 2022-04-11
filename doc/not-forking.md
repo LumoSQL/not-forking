@@ -624,6 +624,11 @@ as an option as it's dependent to the local system, not the configuration
 requesting the download; a file with the same base name as the requested
 download in `DIR` will be used if it exists and matches the expected checksum.
 The option can be repeated to search more than one directory.
+- `--use-upstream-lock` and `--build-upstream-lock` are options to
+"lock" the correspondence between a version and a commit ID in the
+corresponding version control system; which means that if the tags
+change the tool will retrieve the same commit; more discussion about
+this will need to be added in a separate section.
 
 If neither VERSION nor COMMIT\_ID is specified, the default is the latest
 available version, if it can be determined, or else an error message.

@@ -107,11 +107,19 @@ sub set_version {
     @_ == 2 or croak "Usage: FOSSIL->set_version(VERSION)";
     my ($obj, $version) = @_;
     exists $obj->{fossil} or croak "Need to call FOSSIL->get before set_version";
-    my $vv = join('', 'tag:', $obj->{version_prefix}, $version, $obj->{version_suffix});
+    my $vv;
+    delete $obj->{this_version};
+    if (exists $obj->{version_map}) {
+	exists $obj->{version_map}{$version} or die "Invalid version $version\n";
+	$vv = $obj->{version_map}{$version};
+    } else {
+	$vv = join('', 'tag:', $obj->{version_prefix}, $version, $obj->{version_suffix});
+    }
     # if the previous checkout was interrupted, fossil will give an error in this
     # one; the "fossil revert" fixes that
     _fossil_quiet($obj->{fossil}, 'revert', $vv);
     _fossil_quiet($obj->{fossil}, 'checkout', $vv);
+    $obj->{this_version} = $version;
     $obj;
 }
 
@@ -134,6 +142,7 @@ sub commit_valid {
 sub all_versions {
     @_ == 1 or croak "Usage: FOSSIL->all_versions";
     my ($obj) = @_;
+    exists $obj->{version_map} and return keys %{$obj->{version_map}};
     exists $obj->{fossil} or croak "Need to call FOSSIL->get before version";
     my $fossil = $obj->{fossil};
     my $fh = _fossil_read($fossil, 0, 'tag', 'ls');
@@ -147,9 +156,14 @@ sub version_info {
     @_ == 2 or croak "Usage: Fossil->version_info(VERSION)";
     my ($obj, $version) = @_;
     my $fossil = $obj->{fossil};
+    my $fh;
+    if (exists $obj->{version_map} && exists $obj->{this_version}) {
+	$fh = _fossil_read($fossil, 0, 'info', $obj->{version_map}{$obj->{this_version}});
+    } else {
+	$fh = _fossil_read($fossil, 0, 'info', "tag:$obj->{version_prefix}$version$obj->{version_suffix}");
+    }
     my $commit_id = undef;
     my $timestamp = undef;
-    my $fh = _fossil_read($fossil, 0, 'info', "tag:$obj->{version_prefix}$version$obj->{version_suffix}");
     while (defined (my $rl = <$fh>)) {
 	$rl =~ /^hash\s*:\s*(\S+)\s+(\S+)\s+(\S+)\b/
 	    and ($commit_id, $timestamp) = ($1, "$2 $3");
@@ -166,20 +180,23 @@ sub version {
     my ($obj, $approx) = @_;
     exists $obj->{fossil} or croak "Need to call FOSSIL->get before version";
     my $fossil = $obj->{fossil};
-    # get a checkout ID and maybe a tag from "fossil status"
-    my $commit_id = undef;
-    my $version = undef;
-    my $timestamp = undef;
-    my $fh = _fossil_read($fossil, 0, 'status');
-    while (defined (my $rl = <$fh>)) {
-	$rl =~ /^checkout:\s*(\S+)\s+(\S+)\s+(\S+)\b/
-	    and ($commit_id, $timestamp) = ($1, "$2 $3");
-	$rl =~ s/^tags:\s*\b// or next;
-	$rl =~ s/\s+$//;
-	my @rl = split(/,\s*/, $rl);
-	($version) = $obj->_version_grep(\@rl);
+    my ($version, $commit_id, $timestamp);
+    if (exists $obj->{version_map} && exists $obj->{this_version}) {
+	$version = $obj->{this_version};
+	($commit_id, $timestamp) = $obj->version_info($version);
+    } else {
+	# get a checkout ID and maybe a tag from "fossil status"
+	my $fh = _fossil_read($fossil, 0, 'status');
+	while (defined (my $rl = <$fh>)) {
+	    $rl =~ /^checkout:\s*(\S+)\s+(\S+)\s+(\S+)\b/
+		and ($commit_id, $timestamp) = ($1, "$2 $3");
+	    $rl =~ s/^tags:\s*\b// or next;
+	    $rl =~ s/\s+$//;
+	    my @rl = split(/,\s*/, $rl);
+	    ($version) = $obj->_version_grep(\@rl);
+	}
+	_fossil_close($fh);
     }
-    _fossil_close($fh);
     # if we have the information, or else we aren't looking for an
     # approximate version, we're done
     defined $version || ! $approx
@@ -205,6 +222,23 @@ sub info {
     } else {
 	print $fh "No information for $name\n";
     }
+    $obj;
+}
+
+sub upstream_info {
+    @_ == 2 or croak "Usage: FOSSIL->upstream_info(FILEHANDLE)";
+    my ($obj, $fh) = @_;
+    my $fossil = $obj->{fossil};
+    print $fh "vcs = fossil\n" or die "$!\n";
+    print $fh "repository = ", _fossil_get($fossil, 0, 'remote'), "\n" or die "$!\n";
+    $obj;
+}
+
+sub version_map {
+    @_ == 7 or croak "Usage: FOSSIL->version_map(FILEHANDLE, VERSION, DATA)";
+    my ($obj, $fh, $version, $commit, $timestamp, $git, $url) = @_;
+    print $fh "version-$version = $commit\n" or die "$!\n";
+    print $fh "#  time-$version = $timestamp\n" or die "$!\n";
     $obj;
 }
 

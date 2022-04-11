@@ -33,6 +33,12 @@ sub _new {
     }
     $obj->{version_prefix} = $prefix;
     $obj->{version_suffix} = $suffix;
+    my %version_map;
+    for my $v (keys %$options) {
+	$v =~ /^version-(.*)$/ or next;
+	$version_map{$1} = $options->{$v};
+    }
+    scalar(keys %version_map) and $obj->{version_map} = \%version_map;
     $obj;
 }
 

@@ -322,4 +322,22 @@ sub list_files {
     $obj;
 }
 
+sub upstream_info {
+    @_ == 2 or croak "Usage: DOWNLOAD->upstream_info(FILEHANDLE)";
+    my ($obj, $fh) = @_;
+    print $fh "vcs = download\n" or die "$!\n";
+    $obj;
+}
+
+sub version_map {
+    @_ == 7 or croak "Usage: DOWNLOAD->version_map(FILEHANDLE, VERSION, DATA)";
+    my ($obj, $fh, $version, $commit, $timestamp, $git, $url) = @_;
+    print $fh "source-$version = $url\n" or die "$!\n";
+    for my $size (keys %{$obj->{digests}{$version}{sha}}) {
+	my $sum = $obj->{digests}{$version}{sha}{$size};
+	print $fh "sha$size-$version = $sum\n" or die "$!\n";
+    }
+    $obj;
+}
+
 1

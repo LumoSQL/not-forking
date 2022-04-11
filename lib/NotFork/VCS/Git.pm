@@ -120,14 +120,23 @@ sub _checkout {
 sub set_version {
     @_ == 2 or croak "Usage: GIT->set_version(VERSION)";
     my ($obj, $version) = @_;
-    my $vv = join('', $obj->{version_prefix}, $version, $obj->{version_suffix});
+    delete $obj->{this_version};
+    my $vv;
+    if (exists $obj->{version_map}) {
+	exists $obj->{version_map}{$version} or die "Invalid version $version\n";
+	$vv = $obj->{version_map}{$version};
+    } else {
+	$vv = join('', $obj->{version_prefix}, $version, $obj->{version_suffix});
+    }
     _checkout($obj, 'set_version', $vv);
+    $obj->{this_version} = $version;
     $obj;
 }
 
 sub set_commit {
     @_ == 2 or croak "Usage: GIT->set_commit(COMMIT)";
     my ($obj, $commit) = @_;
+    delete $obj->{this_version};
     _checkout($obj, 'set_commit', $commit);
     $obj;
 }
@@ -156,6 +165,7 @@ sub _git_any {
 sub all_versions {
     @_ == 1 or croak "Usage: GIT->all_versions";
     my ($obj) = @_;
+    exists $obj->{version_map} and return keys %{$obj->{version_map}};
     my $git = _git_any($obj, 'all_versions');
     my ($fh, $c) = $git->command_output_pipe('show-ref');
     my ($versions) = $obj->_all_versions($fh, '\S+\s+refs/tags/', '');
@@ -168,11 +178,17 @@ sub version_info {
     @_ == 2 or croak "Usage: GIT->version_info(VERSION)";
     my ($obj, $version) = @_;
     my $git = _git_any($obj, 'version_info');
-    my ($fh, $c) = $git->command_output_pipe('show-ref', '--dereference');
-    my ($versions, $commits) = $obj->_all_versions($fh, "\\S+\\s+refs/tags/", '', qr/^(\S+)\b/);
-    $git->command_close_pipe($fh, $c);
-    exists $commits->{$version} or return ();
-    ($fh, $c) = $git->command_output_pipe('show', '--format=%ct', '-s', $commits->{$version});
+    my $id;
+    if (exists $obj->{version_map} && exists $obj->{this_version}) {
+	$id = $obj->{version_map}{$obj->{this_version}};
+    } else {
+	my ($fh, $c) = $git->command_output_pipe('show-ref', '--dereference');
+	my ($versions, $commits) = $obj->_all_versions($fh, "\\S+\\s+refs/tags/", '', qr/^(\S+)\b/);
+	$git->command_close_pipe($fh, $c);
+	exists $commits->{$version} or return ();
+	$id = $commits->{$version};
+    }
+    my ($fh, $c) = $git->command_output_pipe('show', '--format=%ct', '-s', $id);
     my $timestamp;
     while (<$fh>) {
 	chomp;
@@ -186,7 +202,7 @@ sub version_info {
 	require POSIX;
 	$timestamp = POSIX::strftime('%Y-%m-%d %H:%M:%S', gmtime($timestamp));
     }
-    ($commits->{$version}, $timestamp, 'git', $obj->{repos});
+    ($id, $timestamp, 'git', $obj->{repos});
 }
 
 # find the current version number; other commands fail for various
@@ -197,26 +213,32 @@ sub version {
     @_ == 1 || @_ == 2 or croak "Usage: GIT->version [(APPROXIMATE?)]";
     my ($obj, $approx) = @_;
     my $git = _git_any($obj, 'version');
-    my @stat = grep { /\bbranch\.oid\b/ }
-	$git->command('status', '--porcelain=2', '--branch');
-    @stat or return undef;
-    $stat[0] =~ /\s(\S+)$/ or return undef;
-    my $oid = $1;
-    my $prefix = $obj->{version_prefix};
-    my $suffix = $obj->{version_suffix};
-    # XXX this does not find approximate version numbers yet
-    my ($fh, $c) = $git->command_output_pipe('show-ref', '--dereference');
-    my ($versions, $commits) = $obj->_all_versions($fh, "$oid\\s+refs/tags/", '', qr/^(\S+)\b/);
-    $git->command_close_pipe($fh, $c);
-    my $version = shift @$versions;
-    defined $version and $version =~ s/\^.*$//;
-    wantarray or return $version;
-    my $commit_id = $commits->{$version};
-    if (! defined $commit_id) {
-	($fh, $c) = $git->command_output_pipe('rev-parse', 'HEAD');
-	$commit_id = <$fh>;
+    my ($version, $commit_id);
+    if (exists $obj->{version_map} && exists $obj->{this_version}) {
+	$version = $obj->{this_version};
+	$commit_id = $obj->{version_map}{$version};
+    } else {
+	my @stat = grep { /\bbranch\.oid\b/ }
+	    $git->command('status', '--porcelain=2', '--branch');
+	@stat or return undef;
+	$stat[0] =~ /\s(\S+)$/ or return undef;
+	my $oid = $1;
+	my $prefix = $obj->{version_prefix};
+	my $suffix = $obj->{version_suffix};
+	# XXX this does not find approximate version numbers yet
+	my ($fh, $c) = $git->command_output_pipe('show-ref', '--dereference');
+	my ($versions, $commits) = $obj->_all_versions($fh, "$oid\\s+refs/tags/", '', qr/^(\S+)\b/);
 	$git->command_close_pipe($fh, $c);
-	defined $commit_id and chomp($commit_id);
+	my $version = shift @$versions;
+	defined $version and $version =~ s/\^.*$//;
+	wantarray or return $version;
+	$commit_id = $commits->{$version};
+	if (! defined $commit_id) {
+	    ($fh, $c) = $git->command_output_pipe('rev-parse', 'HEAD');
+	    $commit_id = <$fh>;
+	    $git->command_close_pipe($fh, $c);
+	    defined $commit_id and chomp($commit_id);
+	}
     }
     my $timestamp = $git->command_oneline('show', '--format=%ct', '-s');
     if (defined $timestamp) {
@@ -251,6 +273,23 @@ sub info {
     } else {
 	print $fh "No information for $name\n";
     }
+    $obj;
+}
+
+sub upstream_info {
+    @_ == 2 or croak "Usage: GIT->upstream_info(FILEHANDLE)";
+    my ($obj, $fh) = @_;
+    my $git = _git_any($obj, 'info');
+    print $fh "vcs = git\n" or die "$!\n";
+    print $fh "repository = $obj->{repos}\n" or die "$!\n";
+    $obj;
+}
+
+sub version_map {
+    @_ == 7 or croak "Usage: GIT->version_map(FILEHANDLE, VERSION, DATA)";
+    my ($obj, $fh, $version, $commit, $timestamp, $git, $url) = @_;
+    print $fh "version-$version = $commit\n" or die "$!\n";
+    print $fh "#  time-$version = $timestamp\n" or die "$!\n";
     $obj;
 }
 
