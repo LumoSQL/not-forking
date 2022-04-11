@@ -42,7 +42,7 @@ our $VERSION = '0.5';
 my ($version, $commit, $query, $help, $noupdate, $check_version, $list_versions);
 my ($offline, $my_version, $check_prereq, $check_recommend, $find_version, @names);
 my ($use_version, $ignore, $test_version, @error_option, $version_range);
-my ($list_cache, @remove_cache);
+my ($list_cache, @remove_cache, @local_mirror);
 my $verbose = 1;
 my @options = (
     'c|commit=s'       => \$commit,
@@ -69,6 +69,7 @@ my @options = (
     'use-version=s'    => \$use_version,
     'list-cache'       => \$list_cache,
     'remove-cache=s'   => \@remove_cache,
+    'local-mirror=s'   => \@local_mirror,
     '<>'               => \&add_name,
 );
 Getopt::Long::Configure(qw(bundling));
@@ -238,6 +239,7 @@ for my $np (@names) {
     my $nfobj = new NotFork::Get($name, $version, $commit);
     defined $verbose and $nfobj->verbose($verbose);
     defined $offline and $nfobj->offline($offline);
+    @local_mirror and $nfobj->local_mirror(@local_mirror);
     if ($check_prereq) {
 	$nfobj->check_prereq(\%prereq);
     } else {

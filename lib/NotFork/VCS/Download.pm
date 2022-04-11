@@ -151,10 +151,26 @@ sub set_version {
     -f $dstfile and $obj->_checksum($version, $dstfile);
     if (! -d $dstdir || ! -f $dstidx) {
 	if (! -f $dstfile) {
+	    -l $dstfile and unlink $dstfile; # remove any dangling symlink
+	    my $local_source = undef;
 	    if ($url =~ s|^file:/+|/|) {
 		-f $url or die "URL points to a local file ($url) which does not exist\n";
-		symlink($url, $dstfile) or die "symlink($url): $!\n";
-		-f $dstfile or die "Symlink to $url seems broken\n";
+		$local_source = $url;
+	    } elsif (@{$obj->{local_mirror}}) {
+		my $base = $url;
+		$base =~ s|/+$||;
+		$base =~ s|^.*/||;
+		for my $dir (@{$obj->{local_mirror}}) {
+		    -f "$dir/$base" or next;
+		    eval { $obj->_checksum($version, "$dir/$base"); };
+		    $@ and next; # checksum failed
+		    $local_source = "$dir/$base";
+		    last;
+		}
+	    }
+	    if (defined $local_source) {
+		symlink($local_source, $dstfile) or die "symlink($local_source): $!\n";
+		-f $dstfile or die "Symlink to $local_source seems broken\n";
 	    } else {
 		$obj->{offline}
 		    and die "Would require downloading $url\nProhibited by --offline\n";

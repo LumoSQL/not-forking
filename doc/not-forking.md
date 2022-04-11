@@ -156,10 +156,10 @@ define it again outside the block to provide a default value.
 The only key which must be present is `vcs`, and there is no default.
 It indicates what kind of version control system to use to obtain upstream
 sources; the value is the name of a version control module defined by the
-not-forking mechanism; at the time of writing `git` and `download` are valid
+not-forking mechanism; at the time of writing `fossil`, `git` and `download` are valid
 values; in general, the documentation for the corresponding version control
 module defines what else is present in the `upstream.conf` file; this document
-describes briefly the configuration for the above two modules.
+describes briefly the configuration for the above three modules.
 
 Optionally, two other keys can be present: `compare` and `subtree`.
 
@@ -310,10 +310,26 @@ just trust the downloaded file to be correct.
 the unpacked file names, usually this will be 1 as tarballs start with a
 single directory named after the release and that contains all the files.
 
-At the time of writing, the program uses `file` to figure out how to unpack
+At the time of writing, the program uses the `file` command to figure out how to unpack
 the sources, and then `tar`, `gunzip`, etc as necessary; a future version
 may allow to control the process if the program cannot figure out what to
 do with a particular download.
+
+A full example for the `download` method follows:
+
+```
+vcs = download
+
+source-18.1.32 = https://lumosql.org/dist/berkeley-db.18.1.32.tar.gz
+sha256-18.1.32 = +h/n3pupGtRywl0Cb5MYAll8KfKK6VGWBoXN5IfI1lQ=
+
+source-18.1.40 = https://lumosql.org/dist/berkeley-db.18.1.40.tar.gz
+
+prefix = 1
+```
+
+this means that the sources will be downloaded from the given URLs and
+version 18.1.32 will also be checked against the provided SHA-256 checksum.
 
 # Modification definition file <a name="modification-definition-file-"></a>
 
@@ -602,6 +618,12 @@ project only needs `git`
 be provided as the cache hash (first column of the output of
 `--list-cache`) or as the URL (second column of the output of
 `--list-cache`)
+- `--local-mirror=DIR` specifies a directory to search for downloads; this
+currently only affects the `download` method (see below) but is specified
+as an option as it's dependent to the local system, not the configuration
+requesting the download; a file with the same base name as the requested
+download in `DIR` will be used if it exists and matches the expected checksum.
+The option can be repeated to search more than one directory.
 
 If neither VERSION nor COMMIT\_ID is specified, the default is the latest
 available version, if it can be determined, or else an error message.

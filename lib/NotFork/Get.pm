@@ -221,10 +221,11 @@ sub new {
     _check_input_name($name);
     (my $osname = $Config::Config{myarchname}) =~ s/^.*-//;
     my $obj = bless {
-	name    => $name,
-	verbose => 1,
-	offline => 0,
-	osname  => $osname,
+	name          => $name,
+	verbose       => 1,
+	offline       => 0,
+	osname        => $osname,
+	local_mirror  => [],
     }, $class;
     defined $version and $obj->version($version);
     defined $commit and $obj->commit($commit);
@@ -400,6 +401,7 @@ sub _load_vcs {
     $@ and die "$sf: $@";
     exists $data->{verbose} and $vcsobj->verbose($data->{verbose});
     exists $data->{offline} and $vcsobj->offline($data->{offline});
+    $vcsobj->local_mirror($data->{local_mirror});
     $data->{vcs} = $vcsobj;
     $data->{cache_index} = $vcsobj->cache_index;
     $data->{hash} = cache_hash($data->{cache_index});
@@ -680,10 +682,20 @@ sub verbose {
 }
 
 sub offline {
-    @_ == 1 || @_ == 2 or croak "Usage: NOTFORK->offline [(LEVEL)]";
+    @_ == 1 || @_ == 2 or croak "Usage: NOTFORK->offline [(BOOLEAN)]";
     my $obj = shift;
     @_ or return $obj->{offline};
     _set_vcs($obj, 'offline', @_);
+}
+
+sub local_mirror {
+    @_ > 1 or croak "Usage: NOTFORK->local_mirror(DIR [,DIR]...)";
+    my $obj = shift;
+    push @{$obj->{local_mirror}}, @_;
+    for my $block (@{$obj->{blocks}}) {
+	exists $block->{vcs} and $block->{vcs}->local_mirror($obj->{local_mirror});
+    }
+    $obj
 }
 
 sub version {

@@ -58,6 +58,13 @@ sub offline {
     $obj;
 }
 
+sub local_mirror {
+    @_ == 2 or croak _croak($_[0], "->local_mirror(\\\@dirs)");
+    my ($obj, $list) = @_;
+    $obj->{local_mirror} = $list;
+    $obj;
+}
+
 # name used to index elements in download cache; we use the repository URL
 # and, if specified, the branch (this would allow to have two separate
 # repositories differing only by the branch, and not interfere with each
