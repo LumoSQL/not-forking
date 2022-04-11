@@ -299,7 +299,13 @@ directly; the following keys need to be present:
 
 - `source-xxx` indicates where to obtain the source for a particular version;
 the value is a generic URL; the `xxx` needs to be replaced by a valid version
-number.
+number. If the URL starts with `file:/` the program will just use the local
+file specified, without attempting to access the network.
+- `sha###-xxx` indicates that the downloaded file for version `xxx` is
+expected to have the given sha-`###` checksum (`###` is normally one of
+224, 256, 384 or 512); the checksum can be expressed in base64 or in
+hexadecimal. Older versions of not-forking might ignore this option and
+just trust the downloaded file to be correct.
 - `prefix` indicates that a number of directories need to be removed from
 the unpacked file names, usually this will be 1 as tarballs start with a
 single directory named after the release and that contains all the files.

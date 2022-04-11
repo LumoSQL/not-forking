@@ -1,16 +1,18 @@
 package NotFork::VCS::Download;
 
-# Copyright 2020 The LumoSQL Authors, see LICENSES/MIT
+# Module to download sources from a per-version URL and figure out how to unpack them
+
+# Copyright 2020, 2022 The LumoSQL Authors, see LICENSES/MIT
 #
 # SPDX-License-Identifier: MIT
 # SPDX-FileCopyrightText: 2020 The LumoSQL Authors
 # SPDX-ArtifactOfProjectName: not-forking
 # SPDX-FileType: Code
-# SPDX-FileComment: Original by Claudio Calvelli, 2020
+# SPDX-FileComment: Original by Claudio Calvelli, 2020, 2022
 
 use strict;
 use Carp;
-use NotFork::Get qw(version_convert cache_hash add_prereq add_prereq_or prereq_program);
+use NotFork::Get qw(version_convert cache_hash add_prereq add_prereq_or prereq_program prereq_module);
 use NotFork::VCSCommon;
 
 our @ISA = qw(NotFork::VCSCommon);
@@ -20,11 +22,18 @@ sub new {
     my ($class, $name, $options) = @_;
     my %versions = ();
     my %vptr = ();
+    my %digests = ();
     my $compare = $options->{compare};
     for my $option (keys %$options) {
-	$option =~ /^source-(.*)$/ or next;
-	$versions{$1} = $options->{$option};
-	$vptr{$1} = version_convert($1, $compare);
+	if ($option =~ /^source-(.*)$/) {
+	    my $version = $1;
+	    $versions{$version} = $options->{$option};
+	    $vptr{$version} = version_convert($version, $compare);
+	} elsif ($option =~ /^sha(224|256|384|512)-(.*)$/) {
+	    my ($size, $version) = ($1, $2);
+	    # here we would check if it's a valid hex or b64 string...
+	    $digests{$version}{sha}{$size} = $options->{$option};
+	}
     }
     keys %versions or die "No sources defined\n";
     my @versions = sort { $vptr{$a} cmp $vptr{$b} } keys %versions;
@@ -39,6 +48,7 @@ sub new {
 	_id     => 'DOWNLOAD',
 	vlist   => \@versions,
 	vurl    => \%versions,
+	digests => \%digests,
 	vnumber => $versions[-1],
 	prefix  => $prefix,
     }, $class;
@@ -60,21 +70,30 @@ sub commit_valid {
 sub check_prereq {
     @_ == 2 or croak "Usage: PATCH->check_prereq(RESULT)";
     my ($obj, $result) = @_;
+    # how to get the sources
     add_prereq_or($result,
 	[\&prereq_program, 'curl'],
 	[\&prereq_program, 'wget'],
     );
+    # how to verify archives
+    add_prereq($result,
+	[\&prereq_module, 'Digest::SHA'],
+    );
+    # how to figure out what they are
     add_prereq($result,
 	[\&prereq_program, 'file'],
     );
-    ref $obj or return $obj;
-    # we should check for what this download actually needs...
-    # add_prereq($result,
-	# [\&prereq_program, 'tar'],
-	# [\&prereq_program, 'gzip'],
-	# [\&prereq_program, 'bzip2'],
+    # how to uncompress sources
+    add_prereq($result,
+	[\&prereq_program, 'gzip'],
+	[\&prereq_program, 'bzip2'],
+	[\&prereq_program, 'cat'], # used to get the "unpack" pipe started
 	# [\&prereq_program, 'xz'],
-    # );
+    );
+    # how to unpack archives
+    add_prereq($result,
+	[\&prereq_program, 'tar'],
+    );
     $obj;
 }
 
@@ -96,6 +115,27 @@ sub all_versions {
     @{$obj->{vlist}};
 }
 
+sub _checksum {
+    my ($obj, $version, $file) = @_;
+    for my $size (keys %{$obj->{digests}{$version}{sha}}) {
+	eval 'use Digest::SHA';
+	$@ and die "Please install the Digest::SHA module to verify downloads\n";
+	my $sum = $obj->{digests}{$version}{sha}{$size};
+	my $sha = Digest::SHA->new($size);
+	$sha->addfile($file);
+	my $res;
+	if (length($sum) == int($size / 4) && $sum =~ /^[[:xdigit:]]+$/) {
+	    $res = lc($sha->hexdigest);
+	    $sum = lc($sum);
+	} else {
+	    $res = $sha->b64digest;
+	    # Digest::SHA does not pad Base64 outputs as everybody else expects it
+	    $res .= '=' while length($res) % 4;
+	}
+	$res eq $sum or die "SHA-$size digest does not match\n";
+    }
+}
+
 sub set_version {
     @_ == 2 or croak "Usage: DOWNLOAD->set_version(VERSION)";
     my ($obj, $version) = @_;
@@ -105,46 +145,54 @@ sub set_version {
     my $url = $obj->{vurl}{$version};
     my $hash = cache_hash($url);
     my $dstdir = "$dir/$hash.dir";
+    my $dstfile = "$dir/$hash.src";
     my $dstidx = "$dir/$hash.idx";
+    # if file already present, and we have checksums to verify, verify them
+    -f $dstfile and $obj->_checksum($version, $dstfile);
     if (! -d $dstdir || ! -f $dstidx) {
-	my $dstfile = "$dir/$hash.src";
 	if (! -f $dstfile) {
-	    $obj->{offline}
-		and die "Would require downloading $url\nProhibited by --offline\n";
-	    my $verbose = $obj->{verbose};
-	    $verbose > 1 and print "Downloading $url -> $dir\n";
-	    my @cmd;
-	    if (defined (my $curl = _find('curl'))) {
-		@cmd = ($curl);
-		$verbose > 2 and push @cmd, '-v';
-		$verbose < 1 and push @cmd, '-s';
-		push @cmd, '-o', $dstfile, $url;
-	    } elsif (defined (my $wget = _find('wget'))) {
-		@cmd = ($wget);
-		$verbose > 2 and push @cmd, '-v';
-		$verbose < 1 and push @cmd, '-nv';
-		push @cmd, '-O', $dstfile, $url;
+	    if ($url =~ s|^file:/+|/|) {
+		-f $url or die "URL points to a local file ($url) which does not exist\n";
+		symlink($url, $dstfile) or die "symlink($url): $!\n";
+		-f $dstfile or die "Symlink to $url seems broken\n";
 	    } else {
-		die "Don't know how to download files, please install curl or wget\n";
+		$obj->{offline}
+		    and die "Would require downloading $url\nProhibited by --offline\n";
+		my $verbose = $obj->{verbose};
+		$verbose > 1 and print "Downloading $url -> $dir\n";
+		my @cmd;
+		if (defined (my $curl = _find('curl'))) {
+		    @cmd = ($curl);
+		    $verbose > 2 and push @cmd, '-v';
+		    $verbose < 1 and push @cmd, '-s';
+		    push @cmd, '-o', $dstfile, $url;
+		} elsif (defined (my $wget = _find('wget'))) {
+		    @cmd = ($wget);
+		    $verbose > 2 and push @cmd, '-v';
+		    $verbose < 1 and push @cmd, '-nv';
+		    push @cmd, '-O', $dstfile, $url;
+		} else {
+		    # we could also check for LWP module installed
+		    die "Don't know how to download files, please install curl or wget\n";
+		}
+		if (system(@cmd) != 0) {
+		    $? == -1 and die "Cannot execute $cmd[0]\n";
+		    $? & 0x7f and die "$cmd[0] died with signal " . ($? & 0x7f) . "\n";
+		    die "$cmd[0] exited with status " . ($? >> 8) . "\n";
+		}
+		-f $dstfile or die "$cmd[0] failed to download $url\n";
 	    }
-	    if (system(@cmd) != 0) {
-		$? == -1 and die "Cannot execute $cmd[0]\n";
-		$? & 0x7f and die "$cmd[0] died with signal " . ($? & 0x7f) . "\n";
-		die "$cmd[0] exited with status " . ($? >> 8) . "\n";
-	    }
-	    -f $dstfile or die "$cmd[0] failed to download $url\n";
+	    $obj->_checksum($version, $dstfile);
 	}
 	# now determine what file type we are looking at
 	my @extract_pipe = ();
 	my $type = _file_type($dstfile, @extract_pipe);
 	while ($type =~ /^(\S+)\s*compress/) {
 	    my $cp = $1;
-	    if ($cp eq 'gzip') {
-		push @extract_pipe, 'gzip -dc';
-	    } elsif ($cp eq 'bzip2') {
-		push @extract_pipe, 'bzip2 -dc';
-	    } elsif ($cp eq 'XZ') {
-		push @extract_pipe, 'xz -dc';
+	    if ($cp eq 'gzip' || $cp eq 'bzip2' || $cp eq 'xz') {
+		my $prog = _find($cp);
+		defined $prog or die "Cannot find $cp to uncompress source, please install it\n";
+		push @extract_pipe, "$prog -dc";
 	    } else {
 		die "Don't know how to uncompress \"$cp\"\n";
 	    }
@@ -161,14 +209,17 @@ sub set_version {
 	local $ENV{SRCFILE} = $dstfile;
 	local $ENV{IDXFILE} = $dstidx;
 	local $ENV{DSTDIR} = $dstdir;
-	my $extract_pipe = join(' | ', 'cd "$DSTDIR"; cat "$SRCFILE"', @extract_pipe);
+	my $cat = _find('cat');
+	defined $cat or die "Cannot find 'cat' command\n";
+	my $pipe_start = "cd \"\$DSTDIR\"; $cat \"\$SRCFILE\"";
+	my $extract_pipe = join(' | ', $pipe_start, @extract_pipe);
 	$obj->{verbose} > 1 and print "Unpacking $obj->{name} $version...\n";
 	if (system($extract_pipe) != 0) {
 	    $? == -1 and die "Cannot unpack $dstfile: running ($extract_pipe) failed with error $!\n";
 	    $? & 0x7f and die "unpack ($extract_pipe) died with signal " . ($? & 0x7f) . "\n";
 	    die "unpack ($extract_pipe) exited with status " . ($? >> 8) . "\n";
 	}
-	my $ls_pipe = join(' | ', 'cd "$DSTDIR"; cat "$SRCFILE"', @ls_pipe);
+	my $ls_pipe = join(' | ', $pipe_start, @ls_pipe);
 	$obj->{verbose} > 1 and print "Updating content list for $obj->{name} $version...\n";
 	if (system($ls_pipe) != 0) {
 	    $? == -1 and die "Cannot unpack $dstfile\n";
@@ -194,7 +245,9 @@ sub _find {
 sub _file_type {
     my ($file, @pipe) = @_;
     local $ENV{SRCFILE} = $file;
-    my $pipe = join(' | ', 'cat "$SRCFILE"', @pipe, 'file -');
+    my $cat = _find('cat');
+    defined $cat or die "Cannot find 'cat' command\n";
+    my $pipe = join(' | ', "$cat \"\$SRCFILE\"", @pipe, 'file -');
     open (my $fh, $pipe . ' |') or die "pipe: $!\n";
     my $line = <$fh>;
     close $fh;
