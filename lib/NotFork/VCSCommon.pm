@@ -161,4 +161,17 @@ sub _version_grep {
     @versions;
 }
 
+sub _nix_lock {
+    my ($obj, $fh, $name, $version, $url, $sum) = @_;
+    print $fh <<EOF or die "$!\n";
+  "$name-$version": {
+    "locked": {
+      "sha256": "$sum",
+      "type": "tarball",
+      "url": "$url",
+    }
+  },
+EOF
+}
+
 1

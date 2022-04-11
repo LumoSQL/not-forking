@@ -43,6 +43,7 @@ my ($version, $commit, $query, $help, $noupdate, $check_version, $list_versions)
 my ($offline, $my_version, $check_prereq, $check_recommend, $find_version, @names);
 my ($use_version, $ignore, $test_version, @error_option, $version_range);
 my ($list_cache, @remove_cache, @local_mirror, $build_upstream_lock, $use_upstream_lock);
+my ($build_nix_lock);
 my $verbose = 1;
 my @options = (
     'c|commit=s'           => \$commit,
@@ -72,6 +73,7 @@ my @options = (
     'local-mirror=s'       => \@local_mirror,
     'build-upstream-lock'  => \$build_upstream_lock,
     'use-upstream-lock'    => \$use_upstream_lock,
+    'build-nix-lock=s'     => \$build_nix_lock,
     '<>'                   => \&add_name,
 );
 Getopt::Long::Configure(qw(bundling));
@@ -235,11 +237,18 @@ if (! @names) {
     }
 }
 
+my $nlfh;
+if (defined $build_nix_lock) {
+    open($nlfh, '>', $build_nix_lock) or die "$build_nix_lock: $!\n";
+    print $nlfh "{\n" or die "$build_nix_lock: $!\n";
+}
 %prereq = ();
 for my $np (@names) {
     my ($name, $version, $commit) = @$np;
     my $nfobj = new NotFork::Get($name, $version, $commit,
-				 $use_upstream_lock && ! defined $build_upstream_lock);
+				 $use_upstream_lock &&
+				 ! defined $build_upstream_lock &&
+				 ! defined $build_nix_lock);
     defined $verbose and $nfobj->verbose($verbose);
     defined $offline and $nfobj->offline($offline);
     @local_mirror and $nfobj->local_mirror(@local_mirror);
@@ -247,9 +256,15 @@ for my $np (@names) {
 	$nfobj->check_prereq(\%prereq);
     } else {
 	$nfobj->get($noupdate);
-	if ($list_versions || $query || $version_range || defined $build_upstream_lock) {
+	if ($list_versions ||
+	    $query ||
+	    $version_range ||
+	    defined $build_upstream_lock ||
+	    defined $build_nix_lock)
+	{
 	    $query and $nfobj->info(\*STDOUT);
 	    defined $build_upstream_lock and $nfobj->build_upstream_lock;
+	    defined $build_nix_lock and $nfobj->build_nix_lock($nlfh);
 	    if ($version_range) {
 		my ($min, $max);
 		if ($version_range =~ /^([^:]*):([^:]*)$/) {
@@ -275,6 +290,10 @@ for my $np (@names) {
 	    $nfobj->install();
 	}
     }
+}
+if (defined $build_nix_lock) {
+    print $nlfh "  \"version\": 1\n}\n" or die "$build_nix_lock: $!\n";
+    close $nlfh or die "$build_nix_lock: $!\n";
 }
 
 if ($check_prereq) {

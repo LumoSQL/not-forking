@@ -83,6 +83,8 @@ sub check_prereq {
     my ($obj, $result) = @_;
     add_prereq($result,
 	[\&prereq_program, 'fossil', '1.0', 'version', qr/\b(\d[\.\d]*)\b/],
+	[\&prereq_modile, 'Digest::SHA'],
+	[\&prereq_modile, 'File::Temp'],
     );
     $obj;
 }
@@ -246,10 +248,28 @@ sub upstream_info {
 
 sub version_map {
     @_ == 7 or croak "Usage: FOSSIL->version_map(FILEHANDLE, VERSION, DATA)";
-    my ($obj, $fh, $version, $commit, $timestamp, $git, $url) = @_;
+    my ($obj, $fh, $version, $commit, $timestamp, $vcs, $url) = @_;
     print $fh "version-$version = $commit\n" or die "$!\n";
     print $fh "time-$version = $timestamp\n" or die "$!\n";
     $obj;
+}
+
+sub nix_lock {
+    @_ == 8 or croak "Usage: FOSSIL->nix_lock(FILEHANDLE, NAME, VERSION, DATA)";
+    my ($obj, $fh, $name, $version, $commit, $timestamp, $vcs, $url) = @_;
+    my $path = "/tarball/$commit/$name-$version.tar.gz";
+    eval 'use Digest::SHA';
+    $@ and die "Please install the Digest::SHA module to generate checksums\n";
+    eval 'use File::Temp';
+    $@ and die "Please install the File::Temp module to generate checksums\n";
+    my $sha = Digest::SHA->new(256);
+    my $fossil = $obj->{fossil};
+    my ($tmpfh, $tmpfile) = File::Temp::tempfile(CLEANUP => 1);
+    _fossil_quiet($fossil, 'tarball', $commit, $tmpfile, '--name', "$name-$version");
+    $sha->addfile($tmpfile);
+    unlink($tmpfile);
+    my $sum = $sha->hexdigest;
+    $obj->_nix_lock($fh, $name, $version, "$url$path", $sum);
 }
 
 sub _fossil {

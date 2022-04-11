@@ -294,4 +294,18 @@ sub version_map {
     $obj;
 }
 
+sub nix_lock {
+    @_ == 8 or croak "Usage: GIT->nix_lock(FILEHANDLE, NAME, VERSION, DATA)";
+    my ($obj, $fh, $name, $version, $commit, $timestamp, $vcs, $url) = @_;
+    print $fh <<EOF or die "$!\n";
+  "$name-$version": {
+    "locked": {
+      "type": "git",
+      "url": "$url",
+      "rev": "$commit".
+    }
+  },
+EOF
+}
+
 1

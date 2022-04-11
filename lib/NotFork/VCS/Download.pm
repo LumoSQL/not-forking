@@ -331,13 +331,20 @@ sub upstream_info {
 
 sub version_map {
     @_ == 7 or croak "Usage: DOWNLOAD->version_map(FILEHANDLE, VERSION, DATA)";
-    my ($obj, $fh, $version, $commit, $timestamp, $git, $url) = @_;
+    my ($obj, $fh, $version, $commit, $timestamp, $vcs, $url) = @_;
     print $fh "source-$version = $url\n" or die "$!\n";
     for my $size (keys %{$obj->{digests}{$version}{sha}}) {
 	my $sum = $obj->{digests}{$version}{sha}{$size};
 	print $fh "sha$size-$version = $sum\n" or die "$!\n";
     }
     $obj;
+}
+
+sub nix_lock {
+    @_ == 8 or croak "Usage: DOWNLOAD->nix_lock(FILEHANDLE, NAME, VERSION, DATA)";
+    my ($obj, $fh, $name, $version, $commit, $timestamp, $vcs, $url) = @_;
+    exists $obj->{digests}{$version}{sha}{256} or die "No SHA-256 digest for $version\n";
+    $obj->_nix_lock($fh, $name, $version, $url, $obj->{digests}{$version}{sha}{256});
 }
 
 1

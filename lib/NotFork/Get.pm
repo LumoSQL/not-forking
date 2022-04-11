@@ -281,6 +281,28 @@ sub build_upstream_lock {
     $obj;
 }
 
+sub build_nix_lock {
+    @_ == 2 or croak "Usage: NOTFORK->build_nix_lock(FILEHANDLE)";
+    my ($obj, $fh) = @_;
+    exists $obj->{all_versions} or croak "Need to call get() before build_nix_lock()";
+    my $name = $obj->{name};
+    my @versions = @{$obj->{all_versions}};
+    for my $block (@{$obj->{blocks}}) {
+	my @leftover;
+	for my $version (@versions) {
+	    my @data = $block->{vcs}->version_info($version);
+	    if (@data) {
+		$block->{vcs}->nix_lock($fh, $name, $version, @data);
+	    } else {
+		push @leftover, $version;
+	    }
+	}
+	@versions = @leftover;
+    }
+    @versions and die "Internal error: left over versions (@versions)\n";
+    $obj;
+}
+
 my %required_keys_upstream = (
     vcs => \&_load_vcs,
 );
