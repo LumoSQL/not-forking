@@ -265,7 +265,7 @@ sub json_lock {
 	-d $cache or mkdir $cache;
 	$cache .= '/' . substr($commit, 0, 2);
 	-d $cache or mkdir $cache;
-	$cache .= '/' . substr($commit, 2);
+	$cache .= '/' . substr($commit, 2) . '-id';
 	my $sum;
 	if (open(my $ch, '<', $cache)) {
 	    my $csum = <$ch>;
@@ -283,7 +283,7 @@ sub json_lock {
 	    my $sha = Digest::SHA->new(256);
 	    my $fossil = $obj->{fossil};
 	    my ($tmpfh, $tmpfile) = File::Temp::tempfile(CLEANUP => 1);
-	    _fossil_quiet($fossil, 'tarball', $commit, $tmpfile, '--name', "$name-$version");
+	    _fossil_quiet($fossil, 'tarball', $commit, $tmpfile, '--name', "$name-$commit");
 	    $sha->addfile($tmpfile);
 	    unlink($tmpfile);
 	    $sum = $sha->hexdigest;
@@ -292,7 +292,7 @@ sub json_lock {
 		close $ch;
 	    }
 	}
-	my $path = "/tarball/$commit/$name-$version.tar.gz";
+	my $path = "/tarball/$commit/$name-$commit.tar.gz";
 	$obj->_json_tarball_lock($fh, $name, $version, "$url$path", $sum);
     } else {
 	print $fh <<EOF or die "$!\n";
