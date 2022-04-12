@@ -281,10 +281,10 @@ sub build_upstream_lock {
     $obj;
 }
 
-sub build_nix_lock {
-    @_ == 2 or croak "Usage: NOTFORK->build_nix_lock(FILEHANDLE)";
-    my ($obj, $fh) = @_;
-    exists $obj->{all_versions} or croak "Need to call get() before build_nix_lock()";
+sub build_json_lock {
+    @_ == 3 or croak "Usage: NOTFORK->build_json_lock(FILEHANDLE, PREFER)";
+    my ($obj, $fh, $prefer) = @_;
+    exists $obj->{all_versions} or croak "Need to call get() before build_json_lock()";
     my $name = $obj->{name};
     my @versions = @{$obj->{all_versions}};
     for my $block (@{$obj->{blocks}}) {
@@ -292,7 +292,7 @@ sub build_nix_lock {
 	for my $version (@versions) {
 	    my @data = $block->{vcs}->version_info($version);
 	    if (@data) {
-		$block->{vcs}->nix_lock($fh, $name, $version, @data);
+		$block->{vcs}->json_lock($fh, $name, $prefer, $version, @data);
 	    } else {
 		push @leftover, $version;
 	    }

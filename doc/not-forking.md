@@ -629,6 +629,13 @@ The option can be repeated to search more than one directory.
 corresponding version control system; which means that if the tags
 change the tool will retrieve the same commit; more discussion about
 this will need to be added in a separate section.
+- `--build-json-lock=FILE` creates a list (in json format) of all known
+version numbers and includes information on how to obtain these, by
+specifying the vcs and commit ID or the download URL and checksum.
+- `--prefer-tarball-for=WHAT` instructs ``--build-json-lock` to
+prefer a tarball download over a VCS access for a repository of type
+`WHAT`, currently this is implemented only for `fossil` (and is a no-op
+for `download`).
 
 If neither VERSION nor COMMIT\_ID is specified, the default is the latest
 available version, if it can be determined, or else an error message.

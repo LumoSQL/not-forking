@@ -294,9 +294,10 @@ sub version_map {
     $obj;
 }
 
-sub nix_lock {
-    @_ == 8 or croak "Usage: GIT->nix_lock(FILEHANDLE, NAME, VERSION, DATA)";
-    my ($obj, $fh, $name, $version, $commit, $timestamp, $vcs, $url) = @_;
+sub json_lock {
+    @_ == 9 or croak "Usage: GIT->json_lock(FILEHANDLE, NAME, PREFER, VERSION, DATA)";
+    my ($obj, $fh, $name, $prefer, $version, $commit, $timestamp, $vcs, $url) = @_;
+    # XXX prefer tarball not available
     print $fh <<EOF or die "$!\n";
   "$name-$version": {
     "locked": {

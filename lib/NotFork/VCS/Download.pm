@@ -340,11 +340,11 @@ sub version_map {
     $obj;
 }
 
-sub nix_lock {
-    @_ == 8 or croak "Usage: DOWNLOAD->nix_lock(FILEHANDLE, NAME, VERSION, DATA)";
-    my ($obj, $fh, $name, $version, $commit, $timestamp, $vcs, $url) = @_;
+sub json_lock {
+    @_ == 9 or croak "Usage: DOWNLOAD->json_lock(FILEHANDLE, NAME, PREFER, VERSION, DATA)";
+    my ($obj, $fh, $name, $prefer, $version, $commit, $timestamp, $vcs, $url) = @_;
     exists $obj->{digests}{$version}{sha}{256} or die "No SHA-256 digest for $version\n";
-    $obj->_nix_lock($fh, $name, $version, $url, $obj->{digests}{$version}{sha}{256});
+    $obj->_json_tarball_lock($fh, $name, $version, $url, $obj->{digests}{$version}{sha}{256});
 }
 
 1

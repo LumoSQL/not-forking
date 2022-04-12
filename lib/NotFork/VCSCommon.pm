@@ -161,7 +161,7 @@ sub _version_grep {
     @versions;
 }
 
-sub _nix_lock {
+sub _json_tarball_lock {
     my ($obj, $fh, $name, $version, $url, $sum) = @_;
     print $fh <<EOF or die "$!\n";
   "$name-$version": {

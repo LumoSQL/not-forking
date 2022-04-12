@@ -29,6 +29,8 @@ sub get {
     my $verbose = $obj->{verbose};
     my $fossil_db = $fossil;
     $fossil_db =~ s|/[^/]*$|/db|;
+    my $checksum_cache = $fossil;
+    $checksum_cache =~ s|/[^/]*$|/checksum|;
     my $repo_ok = 0;
     if (-f $fossil_db && -d $fossil) {
 	# assume we have already cloned
@@ -74,6 +76,7 @@ sub get {
 	_fossil($fossil, 'open', $fossil_db);
     }
     $obj->{fossil} = $fossil;
+    $obj->{checksum_cache} = $checksum_cache;
     $obj;
 }
 
@@ -158,7 +161,7 @@ sub version_info {
     @_ == 2 or croak "Usage: Fossil->version_info(VERSION)";
     my ($obj, $version) = @_;
     my $fossil = $obj->{fossil};
-    my $repo = _fossil_get($fossil, 0, 'remote');
+    my $repo = $obj->{repos};
     my $tag;
     if (exists $obj->{version_map}) {
 	exists $obj->{version_map}{$version} or return ();
@@ -180,7 +183,7 @@ sub version_info {
 	    and ($commit_id, $timestamp) = ($1, "$2 $3");
     }
     _fossil_close($fh);
-    ($commit_id, $timestamp, 'fossil', _fossil_get($fossil, 0, 'remote'));
+    ($commit_id, $timestamp, 'fossil', $repo);
 }
 
 # find the current version number; if the second argument is present and true,
@@ -225,7 +228,7 @@ sub info {
 	my $fossil = $obj->{fossil};
 	print $fh "Information for $name:\n";
 	print $fh "vcs = fossil\n";
-	print $fh "url = ", _fossil_get($fossil, 0, 'remote'), "\n";
+	print $fh "url = $obj->{repos}\n";
 	my ($version, $commit_id, $timestamp) = $obj->version;
 	defined $version and print $fh "version = $version\n";
 	defined $commit_id and print $fh "commit_id = $commit_id\n";
@@ -242,7 +245,7 @@ sub upstream_info {
     my ($obj, $fh) = @_;
     my $fossil = $obj->{fossil};
     print $fh "vcs = fossil\n" or die "$!\n";
-    print $fh "repository = ", _fossil_get($fossil, 0, 'remote'), "\n" or die "$!\n";
+    print $fh "repository = $obj->{repos}\n" or die "$!\n";
     $obj;
 }
 
@@ -254,22 +257,54 @@ sub version_map {
     $obj;
 }
 
-sub nix_lock {
-    @_ == 8 or croak "Usage: FOSSIL->nix_lock(FILEHANDLE, NAME, VERSION, DATA)";
-    my ($obj, $fh, $name, $version, $commit, $timestamp, $vcs, $url) = @_;
-    my $path = "/tarball/$commit/$name-$version.tar.gz";
-    eval 'use Digest::SHA';
-    $@ and die "Please install the Digest::SHA module to generate checksums\n";
-    eval 'use File::Temp';
-    $@ and die "Please install the File::Temp module to generate checksums\n";
-    my $sha = Digest::SHA->new(256);
-    my $fossil = $obj->{fossil};
-    my ($tmpfh, $tmpfile) = File::Temp::tempfile(CLEANUP => 1);
-    _fossil_quiet($fossil, 'tarball', $commit, $tmpfile, '--name', "$name-$version");
-    $sha->addfile($tmpfile);
-    unlink($tmpfile);
-    my $sum = $sha->hexdigest;
-    $obj->_nix_lock($fh, $name, $version, "$url$path", $sum);
+sub json_lock {
+    @_ == 9 or croak "Usage: FOSSIL->json_lock(FILEHANDLE, NAME, PREFER, VERSION, DATA)";
+    my ($obj, $fh, $name, $prefer, $version, $commit, $timestamp, $vcs, $url) = @_;
+    if (exists $prefer->{fossil}) {
+	my $cache = $obj->{checksum_cache};
+	-d $cache or mkdir $cache;
+	$cache .= '/' . substr($commit, 0, 2);
+	-d $cache or mkdir $cache;
+	$cache .= '/' . substr($commit, 2);
+	my $sum;
+	if (open(my $ch, '<', $cache)) {
+	    my $csum = <$ch>;
+	    close $ch;
+	    if (defined $csum) {
+		chomp $csum;
+		$csum =~ /^[[:xdigit:]]{64}$/ and $sum = $csum;
+	    }
+	}
+	if (! defined $sum) {
+	    eval 'use Digest::SHA';
+	    $@ and die "Please install the Digest::SHA module to generate checksums\n";
+	    eval 'use File::Temp';
+	    $@ and die "Please install the File::Temp module to generate checksums\n";
+	    my $sha = Digest::SHA->new(256);
+	    my $fossil = $obj->{fossil};
+	    my ($tmpfh, $tmpfile) = File::Temp::tempfile(CLEANUP => 1);
+	    _fossil_quiet($fossil, 'tarball', $commit, $tmpfile, '--name', "$name-$version");
+	    $sha->addfile($tmpfile);
+	    unlink($tmpfile);
+	    $sum = $sha->hexdigest;
+	    if (open(my $ch, '>', $cache)) {
+		print $ch "$sum\n";
+		close $ch;
+	    }
+	}
+	my $path = "/tarball/$commit/$name-$version.tar.gz";
+	$obj->_json_tarball_lock($fh, $name, $version, "$url$path", $sum);
+    } else {
+	print $fh <<EOF or die "$!\n";
+  "$name-$version": {
+    "locked": {
+      "type": "fossil",
+      "url": "$url",
+      "rev": "$commit".
+    }
+  },
+EOF
+    }
 }
 
 sub _fossil {
