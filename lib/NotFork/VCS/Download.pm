@@ -49,7 +49,7 @@ sub new {
 	vlist   => \@versions,
 	vurl    => \%versions,
 	digests => \%digests,
-	vnumber => $versions[-1],
+	pending => $versions[-1],
 	prefix  => $prefix,
     }, $class;
     $obj;
@@ -141,6 +141,14 @@ sub set_version {
     my ($obj, $version) = @_;
     exists $obj->{vurl}{$version} or die "No such version: $version\n";
     exists $obj->{dl_dir} or die "Need to call DOWNLOAD->get before set_version\n";
+    $obj->{pending} = $version;
+    $obj;
+}
+
+sub _process_pending {
+    my ($obj) = @_;
+    exists $obj->{pending} or return $obj;
+    my $version = delete $obj->{pending};
     my $dir = $obj->{dl_dir};
     my $url = $obj->{vurl}{$version};
     my $hash = cache_hash($url);
@@ -285,7 +293,7 @@ sub set_commit {
 sub version {
     @_ == 1 || @_ == 2 or croak "Usage: DOWNLOAD->version [(APPROXIMATE?)]";
     my ($obj, $approx) = @_;
-    $obj->{vnumber};
+    exists $obj->{pending} ? $obj->{pending} : $obj->{vnumber};
 }
 
 sub version_info {
@@ -299,7 +307,7 @@ sub info {
     @_ == 2 or croak "Usage: DOWNLOAD->info(FILEHANDLE)";
     my ($obj, $fh) = @_;
     my $name = $obj->{name};
-    my $vn = $obj->{vnumber};
+    my $vn = exists $obj->{pending} ? $obj->{pending} : $obj->{vnumber};
     print $fh "Information for $name:\n";
     print $fh "vcs = download\n";
     print $fh "version = $vn\n";
@@ -312,6 +320,7 @@ sub info {
 sub list_files {
     @_ == 3 or croak "Usage: DOWNLOAD->list_files(SUBTREE, CALLBACK)";
     my ($obj, $subtree, $call) = @_;
+    $obj->_process_pending;
     exists $obj->{vdata} && exists $obj->{vindex}
 	or croak "Need to call DOWNLOAD->version before list_files";
     my $vdata = $obj->{vdata};
