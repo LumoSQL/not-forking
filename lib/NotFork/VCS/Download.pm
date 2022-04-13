@@ -76,7 +76,7 @@ sub mirror_new {
 	vurl    => {$version => $src},
 	digests => {},
 	pending => $version,
-	prefix  => 0,
+	prefix  => ! $isdir,
 	mirror  => $isdir,
     }, $class;
 }
