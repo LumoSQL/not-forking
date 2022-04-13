@@ -957,6 +957,28 @@ sub install {
     my $block = $obj->{vblock};
     my $vcsobj = $block->{vcs};
     my $subtree = $block->{kw}{subtree};
+    # if we have the sources in a local mirror, use them
+    if (exists $block->{kw}{srcmirror}) {
+	my @S = split(/\s+/, $block->{kw}{srcmirror});
+	my %M = ( D => '$', '$' => '$' );
+	exists $obj->{version} and $M{V} = $obj->{version};
+	exists $obj->{commit} and $M{C} = $obj->{commit};
+	my $re = quotemeta(join('', keys %M));
+	$re = qr/\$([$re])/;
+    MIRROR:
+	for my $mirror (@{$obj->{local_mirror}}) {
+	    for my $src (@S) {
+		$src =~ s($re){ $M{$1} }ge;
+		-d "$mirror/$src" or next;
+		$verbose and print "Using unpacked sources found in $mirror/$src\n";
+		eval 'use NotFork::VCS::Download';
+		$@ and die $@;
+		$vcsobj = NotFork::VCS::Download->mirror_new($obj->{name}, $obj->{version}, "$mirror/$src", 1);
+		$vcsobj->get($block->{vcsbase});
+		last MIRROR;
+	    }
+	}
+    }
     $vcsobj->list_files($subtree, sub { _store_file(\%filelist, @_); });
     my %oldlist = ();
     my $index = "$output/.index";

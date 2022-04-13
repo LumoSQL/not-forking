@@ -55,6 +55,32 @@ sub new {
     $obj;
 }
 
+# creates a special object which can only be used to unpack sources for
+# a single version, or else to use already-unpacked sources for a single
+# version; it is meant to be used by other VCSs when they find a local
+# mirror
+sub mirror_new {
+    @_ == 5 or croak "Usage: mirror_new NotFork::VCS::Download(NAME, VERSION, SRC, IS_DIR?)";
+    my ($class, $name, $version, $src, $isdir) = @_;
+    stat $src or die "$src: $!\n";
+    if ($isdir) {
+	-d _ or die "$src: not a directory\n";
+    } else {
+	-f _ or die "$src: not a regular file\n";
+    }
+    bless {
+	name    => $name,
+	verbose => 1,
+	_id     => 'DOWNLOAD',
+	vlist   => [$version],
+	vurl    => {$version => $src},
+	digests => {},
+	pending => $version,
+	prefix  => 0,
+	mirror  => $isdir,
+    }, $class;
+}
+
 # name used to index elements in download cache; we use the same cache index for
 # all downloads, but then we'll also add a hash of the actual URL
 sub cache_index {
@@ -93,6 +119,12 @@ sub check_prereq {
     # how to unpack archives
     add_prereq($result,
 	[\&prereq_program, 'tar'],
+    );
+    # we may also need to find all unpacked files (tar provides the list
+    # while unpacking, but we cannot use that if somebody else has
+    # provided an unpacked source in a mirror directory)
+    add_prereq($result,
+	[\&prereq_module, 'File::Find'],
     );
     $obj;
 }
@@ -158,10 +190,17 @@ sub _process_pending {
     # if file already present, and we have checksums to verify, verify them
     -f $dstfile and $obj->_checksum($version, $dstfile);
     if (! -d $dstdir || ! -f $dstidx) {
-	if (! -f $dstfile) {
+	-l $dstdir and unlink $dstdir; # remove any dangling symlink
+	my $mirror = $obj->{mirror};
+	if ($mirror) {
+	    # this is an unpacked local mirror of something else
+	    -d $url or die "URL points to a local directory ($url) which does not exist\n";
+	    symlink($url, $dstdir) or die "symlink($url): $!\n";
+	    -d $dstdir or die "Symlink to $url seems broken\n";
+	} elsif (! -f $dstfile) {
 	    -l $dstfile and unlink $dstfile; # remove any dangling symlink
 	    my $local_source = undef;
-	    if ($url =~ s|^file:/+|/|) {
+	    if (defined $mirror or $url =~ s|^file:/+|/|) {
 		-f $url or die "URL points to a local file ($url) which does not exist\n";
 		$local_source = $url;
 	    } elsif (@{$obj->{local_mirror}}) {
@@ -208,47 +247,62 @@ sub _process_pending {
 	    }
 	    $obj->_checksum($version, $dstfile);
 	}
-	# now determine what file type we are looking at
-	my @extract_pipe = ();
-	my $type = _file_type($dstfile, @extract_pipe);
-	while ($type =~ /^(\S+)\s*compress/) {
-	    my $cp = $1;
-	    if ($cp eq 'gzip' || $cp eq 'bzip2' || $cp eq 'xz') {
-		my $prog = _find($cp);
-		defined $prog or die "Cannot find $cp to uncompress source, please install it\n";
-		push @extract_pipe, "$prog -dc";
-	    } else {
-		die "Don't know how to uncompress \"$cp\"\n";
-	    }
-	    $type = _file_type($dstfile, @extract_pipe);
-	}
-	my @ls_pipe = @extract_pipe;
-	if ($type =~ /\btar\b.*\barchive/i) {
-	    push @ls_pipe, 'tar -tf - > "$IDXFILE"';
-	    push @extract_pipe, 'tar -xf -';
+	if ($mirror) {
+	    # get file list from mirror directory
+	    eval 'use File::Find ()';
+	    $@ and die "Please install File::Find to get contents of a mirrored source directory\n";
+	    open(my $idx, '>', $dstidx) or die "$dstidx: $!\n";
+	    my $len = length($dstdir) + 1;
+	    File::Find::finddepth({ wanted => sub {
+		lstat($_) or return;
+		-d _ || -f _ || -l _ or return;
+		substr($_, 0, $len) eq "$dstdir/" or return;
+		print $idx substr($_, $len), (-d _ ? '/' : ''), "\n" or die "$dstidx: $!\n";
+	    }, no_chdir => 1 }, "$dstdir/");
+	    close $idx or die "$dstidx: $!\n";
 	} else {
-	    die "Don't know how to unpack \"$type\"\n";
-	}
-	-d $dstdir or mkdir $dstdir or die "$dstdir: $!\n";
-	local $ENV{SRCFILE} = $dstfile;
-	local $ENV{IDXFILE} = $dstidx;
-	local $ENV{DSTDIR} = $dstdir;
-	my $cat = _find('cat');
-	defined $cat or die "Cannot find 'cat' command\n";
-	my $pipe_start = "cd \"\$DSTDIR\"; $cat \"\$SRCFILE\"";
-	my $extract_pipe = join(' | ', $pipe_start, @extract_pipe);
-	$obj->{verbose} > 1 and print "Unpacking $obj->{name} $version...\n";
-	if (system($extract_pipe) != 0) {
-	    $? == -1 and die "Cannot unpack $dstfile: running ($extract_pipe) failed with error $!\n";
-	    $? & 0x7f and die "unpack ($extract_pipe) died with signal " . ($? & 0x7f) . "\n";
-	    die "unpack ($extract_pipe) exited with status " . ($? >> 8) . "\n";
-	}
-	my $ls_pipe = join(' | ', $pipe_start, @ls_pipe);
-	$obj->{verbose} > 1 and print "Updating content list for $obj->{name} $version...\n";
-	if (system($ls_pipe) != 0) {
-	    $? == -1 and die "Cannot unpack $dstfile\n";
-	    $? & 0x7f and die "unpack died with signal " . ($? & 0x7f) . "\n";
-	    die "unpack exited with status " . ($? >> 8) . "\n";
+	    # now determine what file type we are looking at
+	    my @extract_pipe = ();
+	    my $type = _file_type($dstfile, @extract_pipe);
+	    while ($type =~ /^(\S+)\s*compress/) {
+		my $cp = $1;
+		if ($cp eq 'gzip' || $cp eq 'bzip2' || $cp eq 'xz') {
+		    my $prog = _find($cp);
+		    defined $prog or die "Cannot find $cp to uncompress source, please install it\n";
+		    push @extract_pipe, "$prog -dc";
+		} else {
+		    die "Don't know how to uncompress \"$cp\"\n";
+		}
+		$type = _file_type($dstfile, @extract_pipe);
+	    }
+	    my @ls_pipe = @extract_pipe;
+	    if ($type =~ /\btar\b.*\barchive/i) {
+		push @ls_pipe, 'tar -tf - > "$IDXFILE"';
+		push @extract_pipe, 'tar -xf -';
+	    } else {
+		die "Don't know how to unpack \"$type\"\n";
+	    }
+	    -d $dstdir or mkdir $dstdir or die "$dstdir: $!\n";
+	    local $ENV{SRCFILE} = $dstfile;
+	    local $ENV{IDXFILE} = $dstidx;
+	    local $ENV{DSTDIR} = $dstdir;
+	    my $cat = _find('cat');
+	    defined $cat or die "Cannot find 'cat' command\n";
+	    my $pipe_start = "cd \"\$DSTDIR\"; $cat \"\$SRCFILE\"";
+	    my $extract_pipe = join(' | ', $pipe_start, @extract_pipe);
+	    $obj->{verbose} > 1 and print "Unpacking $obj->{name} $version...\n";
+	    if (system($extract_pipe) != 0) {
+		$? == -1 and die "Cannot unpack $dstfile: running ($extract_pipe) failed with error $!\n";
+		$? & 0x7f and die "unpack ($extract_pipe) died with signal " . ($? & 0x7f) . "\n";
+		die "unpack ($extract_pipe) exited with status " . ($? >> 8) . "\n";
+	    }
+	    my $ls_pipe = join(' | ', $pipe_start, @ls_pipe);
+	    $obj->{verbose} > 1 and print "Updating content list for $obj->{name} $version...\n";
+	    if (system($ls_pipe) != 0) {
+		$? == -1 and die "Cannot unpack $dstfile\n";
+		$? & 0x7f and die "unpack died with signal " . ($? & 0x7f) . "\n";
+		die "unpack exited with status " . ($? >> 8) . "\n";
+	    }
 	}
     }
     $obj->{vnumber} = $version;
