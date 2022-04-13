@@ -36,43 +36,77 @@ sub check_prereq {
     $obj;
 }
 
+sub _process_pending {
+    my ($obj) = @_;
+    if (exists $obj->{pending_get}) {
+	my ($topdir, $noupdate) = @{delete $obj->{pending_get}};
+	require Git;
+	my $verbose = $obj->{verbose};
+	$obj->{offline} and $noupdate = 1;
+	my $repos = $topdir;
+	$repos =~ s|[^/]*$|main_clone|;
+	if (-d "$repos/.git") {
+	    # assume we have already cloned
+	    $verbose > 1 && ! $noupdate and print "Updating $obj->{name} in $repos\n";
+	    my $git = Git->repository(WorkingCopy => $repos);
+	    my $url = $git->command_oneline('config', '--get', 'remote.origin.url');
+	    $url eq $obj->{repos}
+		or die "Inconsistent cache: $url // $obj->{repos}\n";
+	    if (! $noupdate) {
+		my @q = $verbose > 2 ? ('-v') : ($verbose == 2 ? () : ('-q'));
+		eval { $git->command('fetch', @q); };
+		if ($@) {
+		    # Git module is rather buggy... 141 is a SIGCHLD rewritten wrongly
+		    $@ =~ /command returned error: 141/ or die $@;
+		}
+	    }
+	} else {
+	    # need to clone into $repos
+	    $obj->{offline}
+		and die "Would need to clone $obj->{repos}\nProhibited by --offline\n";
+	    $verbose > 1 and print "Cloning $obj->{name}: $obj->{repos} --> $repos\n";
+	    my @args = ( '--no-checkout' );
+	    exists $obj->{branch} and push @args, ('-b', $obj->{branch});
+	    $verbose > 2 and push @args, '-v';
+	    $verbose < 2 and push @args, '-q';
+	    # XXX user/password?
+	    Git::command('clone', @args, $obj->{repos}, $repos);
+	}
+	$obj->{cache} = $topdir;
+	$obj->{main_clone} = $repos;
+    }
+    if (exists $obj->{pending_checkout}) {
+	my ($cmd, $what) = @{delete $obj->{pending_checkout}};
+	exists $obj->{main_clone} or croak "Need to call GIT->get before $cmd";
+	my $cache = $obj->{cache};
+	my $repos = $obj->{main_clone};
+	my $vcsdata = $cache;
+	$vcsdata =~ s|[^/]*$|vcsdata|;
+	if (-d $cache) {
+	    if (open(DATA, '<', $vcsdata)) {
+		my $line = <DATA>;
+		close DATA;
+		if (defined $line and $line eq $what) {
+		    $obj->{git} = Git->repository(WorkingCopy => $cache);
+		    return;
+		}
+	    }
+	    require File::Path;
+	    File::Path::remove_tree($cache);
+	}
+	Git::command('clone', '-q', '--no-checkout', $repos, $cache);
+	$obj->{git} = Git->repository(WorkingCopy => $cache);
+	$obj->{git}->command('checkout', '-q', $what);
+	open(DATA, '>', $vcsdata);
+	print DATA $what;
+	close DATA;
+    }
+}
+
 sub get {
     @_ == 2 || @_ == 3 or croak "Usage: GIT->get(DIR [, SKIP_UPDATE?])";
     my ($obj, $topdir, $noupdate) = @_;
-    require Git;
-    my $verbose = $obj->{verbose};
-    $obj->{offline} and $noupdate = 1;
-    my $repos = $topdir;
-    $repos =~ s|[^/]*$|main_clone|;
-    if (-d "$repos/.git") {
-	# assume we have already cloned
-	$verbose > 1 && ! $noupdate and print "Updating $obj->{name} in $repos\n";
-	my $git = Git->repository(WorkingCopy => $repos);
-	my $url = $git->command_oneline('config', '--get', 'remote.origin.url');
-	$url eq $obj->{repos}
-	    or die "Inconsistent cache: $url // $obj->{repos}\n";
-	if (! $noupdate) {
-	    my @q = $verbose > 2 ? ('-v') : ($verbose == 2 ? () : ('-q'));
-	    eval { $git->command('fetch', @q); };
-	    if ($@) {
-		# Git module is rather buggy... 141 is a SIGCHLD rewritten wrongly
-		$@ =~ /command returned error: 141/ or die $@;
-	    }
-	}
-    } else {
-	# need to clone into $repos
-	$obj->{offline}
-	    and die "Would need to clone $obj->{repos}\nProhibited by --offline\n";
-	$verbose > 1 and print "Cloning $obj->{name}: $obj->{repos} --> $repos\n";
-	my @args = ( '--no-checkout' );
-	exists $obj->{branch} and push @args, ('-b', $obj->{branch});
-	$verbose > 2 and push @args, '-v';
-	$verbose < 2 and push @args, '-q';
-	# XXX user/password?
-	Git::command('clone', @args, $obj->{repos}, $repos);
-    }
-    $obj->{cache} = $topdir;
-    $obj->{main_clone} = $repos;
+    $obj->{pending_get} = [$topdir, $noupdate];
     $obj;
 }
 
@@ -80,6 +114,7 @@ sub get {
 sub list_files {
     @_ == 3 or croak "Usage: GIT->list_files(SUBTREE, CALLBACK)";
     my ($obj, $subtree, $call) = @_;
+    $obj->_process_pending;
     exists $obj->{git} or croak "Need to call GIT->get before list_files";
     my $git = $obj->{git};
     my $cache = $obj->{cache};
@@ -92,29 +127,9 @@ sub list_files {
 
 sub _checkout {
     my ($obj, $cmd, $what) = @_;
-    exists $obj->{main_clone} or croak "Need to call GIT->get before $cmd";
-    my $cache = $obj->{cache};
-    my $repos = $obj->{main_clone};
-    my $vcsdata = $cache;
-    $vcsdata =~ s|[^/]*$|vcsdata|;
-    if (-d $cache) {
-	if (open(DATA, '<', $vcsdata)) {
-	    my $line = <DATA>;
-	    close DATA;
-	    if (defined $line and $line eq $what) {
-		$obj->{git} = Git->repository(WorkingCopy => $cache);
-		return;
-	    }
-	}
-	require File::Path;
-	File::Path::remove_tree($cache);
-    }
-    Git::command('clone', '-q', '--no-checkout', $repos, $cache);
-    $obj->{git} = Git->repository(WorkingCopy => $cache);
-    $obj->{git}->command('checkout', '-q', $what);
-    open(DATA, '>', $vcsdata);
-    print DATA $what;
-    close DATA;
+    exists $obj->{main_clone} || exists $obj->{pending_get}
+	or croak "Need to call GIT->get before $cmd";
+    $obj->{pending_checkout} = [$cmd, $what];
 }
 
 sub set_version {
@@ -141,24 +156,29 @@ sub set_commit {
     $obj;
 }
 
+sub _git_any {
+    my ($obj, $cmd) = @_;
+    exists $obj->{git} and return $obj->{git};
+    $obj->_process_pending;
+    exists $obj->{main_clone} or croak "Need to call GIT->get before $cmd";
+    return Git->repository(WorkingCopy => $obj->{main_clone});
+}
+
 # see if a commit ID is valid
 sub commit_valid {
     @_ == 2 or croak "Usage: GIT->commit_valid(COMMIT_ID)";
     my ($obj, $commit) = @_;
-    my $git = _git_any($obj, 'commit_valid');
     my $ok = 0;
-    eval {
-	$git->command('log', "$commit^1..$commit");
-	$ok = 1;
-    };
+    if (exists $obj->{version_map}) {
+	scalar(grep { $_ eq $commit } values %{$obj->{version_map}}) and $ok = 1;
+    } else {
+	my $git = _git_any($obj, 'commit_valid');
+	eval {
+	    $git->command('log', "$commit^1..$commit");
+	    $ok = 1;
+	};
+    }
     $ok;
-}
-
-sub _git_any {
-    my ($obj, $cmd) = @_;
-    exists $obj->{git} and return $obj->{git};
-    exists $obj->{main_clone} or croak "Need to call GIT->get before $cmd";
-    return Git->repository(WorkingCopy => $obj->{main_clone});
 }
 
 # list all version numbers
@@ -177,31 +197,32 @@ sub all_versions {
 sub version_info {
     @_ == 2 or croak "Usage: GIT->version_info(VERSION)";
     my ($obj, $version) = @_;
-    my $git = _git_any($obj, 'version_info');
-    my $id;
+    my ($id, $timestamp);
     if (exists $obj->{version_map}) {
 	exists $obj->{version_map}{$version} or return ();
 	$id = $obj->{version_map}{$version};
+	exists $obj->{time_map}{$version}
+	    and $timestamp = $obj->{time_map}{$version}
     } else {
+	my $git = _git_any($obj, 'version_info');
 	my ($fh, $c) = $git->command_output_pipe('show-ref', '--dereference');
 	my ($versions, $commits) = $obj->_all_versions($fh, "\\S+\\s+refs/tags/", '', qr/^(\S+)\b/);
 	$git->command_close_pipe($fh, $c);
 	exists $commits->{$version} or return ();
 	$id = $commits->{$version};
-    }
-    my ($fh, $c) = $git->command_output_pipe('show', '--format=%ct', '-s', $id);
-    my $timestamp;
-    while (<$fh>) {
-	chomp;
-	/^\d+$/ and $timestamp = $_;
-    }
-    $git->command_close_pipe($fh, $c);
-    if (defined $timestamp) {
-	# do a require here, rather than a use, so we can list POSIX
-	# in the prerequisites (and not fail to load it in the
-	# unlikely case it's not present)
-	require POSIX;
-	$timestamp = POSIX::strftime('%Y-%m-%d %H:%M:%S', gmtime($timestamp));
+	($fh, $c) = $git->command_output_pipe('show', '--format=%ct', '-s', $id);
+	while (<$fh>) {
+	    chomp;
+	    /^\d+$/ and $timestamp = $_;
+	}
+	$git->command_close_pipe($fh, $c);
+	if (defined $timestamp) {
+	    # do a require here, rather than a use, so we can list POSIX
+	    # in the prerequisites (and not fail to load it in the
+	    # unlikely case it's not present)
+	    require POSIX;
+	    $timestamp = POSIX::strftime('%Y-%m-%d %H:%M:%S', gmtime($timestamp));
+	}
     }
     ($id, $timestamp, 'git', $obj->{repos});
 }
@@ -213,12 +234,14 @@ sub version_info {
 sub version {
     @_ == 1 || @_ == 2 or croak "Usage: GIT->version [(APPROXIMATE?)]";
     my ($obj, $approx) = @_;
-    my $git = _git_any($obj, 'version');
-    my ($version, $commit_id);
+    my ($version, $commit_id, $timestamp);
     if (exists $obj->{version_map} && exists $obj->{this_version}) {
 	$version = $obj->{this_version};
 	$commit_id = $obj->{version_map}{$version};
+	exists $obj->{time_map}{$version}
+	    and $timestamp = $obj->{time_map}{$version}
     } else {
+	my $git = _git_any($obj, 'version');
 	my @stat = grep { /\bbranch\.oid\b/ }
 	    $git->command('status', '--porcelain=2', '--branch');
 	@stat or return undef;
@@ -240,14 +263,14 @@ sub version {
 	    $git->command_close_pipe($fh, $c);
 	    defined $commit_id and chomp($commit_id);
 	}
-    }
-    my $timestamp = $git->command_oneline('show', '--format=%ct', '-s');
-    if (defined $timestamp) {
-	# do a require here, rather than a use, so we can list POSIX
-	# in the prerequisites (and not fail to load it in the
-	# unlikely case it's not present)
-	require POSIX;
-	$timestamp = POSIX::strftime('%Y-%m-%d %H:%M:%S', gmtime($timestamp));
+	$timestamp = $git->command_oneline('show', '--format=%ct', '-s');
+	if (defined $timestamp) {
+	    # do a require here, rather than a use, so we can list POSIX
+	    # in the prerequisites (and not fail to load it in the
+	    # unlikely case it's not present)
+	    require POSIX;
+	    $timestamp = POSIX::strftime('%Y-%m-%d %H:%M:%S', gmtime($timestamp));
+	}
     }
     ($version, $commit_id, $timestamp);
 }
@@ -256,31 +279,25 @@ sub info {
     @_ == 2 or croak "Usage: GIT->info(FILEHANDLE)";
     my ($obj, $fh) = @_;
     my $name = $obj->{name};
-    my $git;
-    eval { $git = _git_any($obj, 'info'); };
-    if (defined $git) {
-	print $fh "Information for $name:\n";
-	print $fh "vcs = git\n";
-	print $fh "url = $obj->{repos}\n";
-	eval {
-	    my $branch = $git->command_oneline('branch', '--show-current');
-	    defined $branch and print $fh "branch = $branch\n";
-	};
-	my ($version, $commit_id, $timestamp) = $obj->version;
-	defined $version and print $fh "version = $version\n";
-	defined $commit_id and print $fh "commit_id = $commit_id\n";
-	defined $timestamp and print $fh "commit_timestamp = $timestamp UTC\n";
-	print $fh "\n";
-    } else {
-	print $fh "No information for $name\n";
-    }
+    print $fh "Information for $name:\n";
+    print $fh "vcs = git\n";
+    print $fh "url = $obj->{repos}\n";
+    eval {
+	my $git = _git_any($obj, 'info');
+	my $branch = $git->command_oneline('branch', '--show-current');
+	defined $branch and print $fh "branch = $branch\n";
+    };
+    my ($version, $commit_id, $timestamp) = $obj->version;
+    defined $version and print $fh "version = $version\n";
+    defined $commit_id and print $fh "commit_id = $commit_id\n";
+    defined $timestamp and print $fh "commit_timestamp = $timestamp UTC\n";
+    print $fh "\n";
     $obj;
 }
 
 sub upstream_info {
     @_ == 2 or croak "Usage: GIT->upstream_info(FILEHANDLE)";
     my ($obj, $fh) = @_;
-    my $git = _git_any($obj, 'info');
     print $fh "vcs = git\n" or die "$!\n";
     print $fh "repository = $obj->{repos}\n" or die "$!\n";
     $obj;

@@ -259,6 +259,10 @@ sub build_upstream_lock {
 		if (@data) {
 		    if ($start_block) {
 			print $fh "block\n" or die "$tempfile: $!\n";
+			for my $kw (qw(subtree prefix srcmirror)) {
+			    exists $block->{kw}{$kw} or next;
+			    print $fh "$kw = $block->{kw}{$kw}\n" or die "$tempfile: $!\n";
+			}
 			$block->{vcs}->upstream_info($fh);
 			$start_block = 0;
 		    }
@@ -961,19 +965,21 @@ sub install {
     if (exists $block->{kw}{srcmirror}) {
 	my @S = split(/\s+/, $block->{kw}{srcmirror});
 	my %M = ( D => '$', '$' => '$' );
-	exists $obj->{version} and $M{V} = $obj->{version};
-	exists $obj->{commit} and $M{C} = $obj->{commit};
+	my ($version, $commit) = $vcsobj->version;
+	defined $version and $M{V} = $version;
+	defined $commit and $M{C} = $commit;
 	my $re = quotemeta(join('', keys %M));
 	$re = qr/\$([$re])/;
     MIRROR:
-	for my $mirror (@{$obj->{local_mirror}}) {
-	    for my $src (@S) {
-		$src =~ s($re){ $M{$1} }ge;
-		-d "$mirror/$src" or next;
+	for my $src (@S) {
+	    $src =~ s($re){ $M{$1} }ge;
+	    for my $mirror (@{$obj->{local_mirror}}) {
+		stat "$mirror/$src" or next;
+		-d _ || -f _ or next;
 		$verbose and print "Using unpacked sources found in $mirror/$src\n";
-		eval 'use NotFork::VCS::Download';
+		require NotFork::VCS::Download;
 		$@ and die $@;
-		$vcsobj = NotFork::VCS::Download->mirror_new($obj->{name}, $obj->{version}, "$mirror/$src", 1);
+		$vcsobj = NotFork::VCS::Download->mirror_new($obj->{name}, $obj->{version}, "$mirror/$src", -d _);
 		$vcsobj->get($block->{vcsbase});
 		last MIRROR;
 	    }
