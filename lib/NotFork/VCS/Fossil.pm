@@ -10,7 +10,7 @@ package NotFork::VCS::Fossil;
 
 use strict;
 use Carp;
-use NotFork::Get qw(add_prereq prereq_program);
+use NotFork::Get qw(add_prereq prereq_program prereq_module);
 use NotFork::VCSCommon;
 
 our @ISA = qw(NotFork::VCSCommon);
@@ -86,8 +86,8 @@ sub check_prereq {
     my ($obj, $result) = @_;
     add_prereq($result,
 	[\&prereq_program, 'fossil', '1.0', 'version', qr/\b(\d[\.\d]*)\b/],
-	[\&prereq_modile, 'Digest::SHA'],
-	[\&prereq_modile, 'File::Temp'],
+	[\&prereq_module, 'Digest::SHA'],
+	[\&prereq_module, 'File::Temp'],
     );
     $obj;
 }
