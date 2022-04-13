@@ -1045,7 +1045,7 @@ sub install {
 	-d $cd and remove_tree($cd);
 	make_path($cd);
 	my %cached = ();
-	my $vcs = $block->{vcsbase};
+	my $vcs = $vcsobj->source_dir($block->{vcsbase});
 	my $subtree = $block->{kw}{subtree};
 	my $sp = defined $subtree ? "$subtree/" : '';
 	for my $mobj (@{$obj->{mod}}) {

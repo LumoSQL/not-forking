@@ -137,7 +137,6 @@ sub get {
     $obj->{dl_dir} = $dir;
     -d $dir and return;
     mkdir $dir or die "$dir: $!\n";
-    $obj;
 }
 
 # list all version numbers
@@ -179,7 +178,7 @@ sub set_version {
 
 sub _process_pending {
     my ($obj) = @_;
-    exists $obj->{pending} or return $obj;
+    exists $obj->{pending} or return;
     my $version = delete $obj->{pending};
     my $dir = $obj->{dl_dir};
     my $url = $obj->{vurl}{$version};
@@ -309,7 +308,14 @@ sub _process_pending {
     $obj->{vdata} = $dstdir;
     $obj->{vindex} = $dstidx;
     $obj->{vcsbase} = $dstdir;
-    $obj;
+}
+
+sub source_dir {
+    @_ == 2 or croak "Usage: DOWNLOAD->source_dir(VCSDIR)";
+    my ($obj, $dir) = @_;
+    $obj->_process_pending;
+    exists $obj->{vcsbase} or croak "Need to call get before source_dir";
+    $obj->{vcsbase};
 }
 
 sub _find {

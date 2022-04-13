@@ -76,6 +76,12 @@ sub local_mirror {
     $obj;
 }
 
+sub source_dir {
+    @_ == 2 or croak _croak($_[0], "->source_dir(VCSDIR)");
+    my ($obj, $dir) = @_;
+    $dir;
+}
+
 # name used to index elements in download cache; we use the repository URL
 # and, if specified, the branch (this would allow to have two separate
 # repositories differing only by the branch, and not interfere with each
