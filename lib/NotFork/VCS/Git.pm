@@ -320,7 +320,7 @@ sub json_lock {
     "locked": {
       "type": "git",
       "url": "$url",
-      "rev": "$commit".
+      "rev": "$commit",
     }
   },
 EOF

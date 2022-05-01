@@ -333,7 +333,7 @@ sub json_lock {
     "locked": {
       "type": "fossil",
       "url": "$url",
-      "rev": "$commit".
+      "rev": "$commit",
     }
   },
 EOF
