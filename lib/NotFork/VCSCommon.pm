@@ -174,7 +174,7 @@ sub _json_tarball_lock {
     "locked": {
       "sha256": "$sum",
       "type": "tarball",
-      "url": "$url",
+      "url": "$url"
     }
   },
 EOF
