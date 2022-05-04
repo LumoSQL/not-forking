@@ -166,7 +166,7 @@ sub commit_valid {
 	$obj->_process_pending;
 	exists $obj->{fossil}
 	    or croak "Need to call FOSSIL->get before commit_valid";
-	_fossil_check($obj->{fossil}, 'timeline', '-n', 1, $commit) and $ok = 1;
+	_fossil_check($obj->{fossil}, 'whatis', $commit) and $ok = 1;
     }
     $ok;
 }
@@ -206,12 +206,13 @@ sub version_info {
     }
     $obj->_process_pending;
     exists $obj->{fossil} or croak "Need to call FOSSIL->get before version_info";
-    my $commit_id = undef;
-    my $timestamp = undef;
-    my $fh = _fossil_read($fossil, 0, 'info', $tag);
+    my ($commit_id, $timestamp);
+    my $fh = _fossil_read($fossil, 0, 'whatis', $tag);
     while (defined (my $rl = <$fh>)) {
-	$rl =~ /^hash\s*:\s*(\S+)\s+(\S+)\s+(\S+)\b/
-	    and ($commit_id, $timestamp) = ($1, "$2 $3");
+	$rl =~ /^artifact\s*:\s*(\S+)\b/i
+	    and $commit_id = $1;
+	$rl =~ /^type\s*:.*\s(\S+\s+\S+)\s*$/i
+	    and $timestamp = $1;
     }
     _fossil_close($fh);
     ($commit_id, $timestamp, 'fossil', $repo);
@@ -238,13 +239,14 @@ sub version {
     exists $obj->{fossil} or croak "Need to call FOSSIL->get before version";
     my $fossil = $obj->{fossil};
     # get a checkout ID and maybe a tag from "fossil status"
-    my $fh = _fossil_read($fossil, 0, 'status');
     my ($version, $commit_id, $timestamp);
+    my $fh = _fossil_read($fossil, 0, 'timeline', '-limit', '1', '-full');
     while (defined (my $rl = <$fh>)) {
-	$rl =~ /^checkout:\s*(\S+)\s+(\S+)\s+(\S+)\b/
-	    and ($commit_id, $timestamp) = ($1, "$2 $3");
-	$rl =~ s/^tags:\s*\b// or next;
-	$rl =~ s/\s+$//;
+	$rl =~ /^commit\s*:\s*(\S+)\b/i
+	    and $commit_id = $1;
+	$rl =~ /^date\s*:\s*(\S+\s+\S+)\b/i
+	    and $timestamp = $1;
+	$rl =~ s/^tags\s*:\s*\b//i or next;
 	my @rl = split(/,\s*/, $rl);
 	($version) = $obj->_version_grep(\@rl);
     }
