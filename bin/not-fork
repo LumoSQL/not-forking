@@ -43,7 +43,7 @@ my ($version, $commit, $query, $help, $noupdate, $check_version, $list_versions)
 my ($offline, $my_version, $check_prereq, $check_recommend, $find_version, @names);
 my ($use_version, $ignore, $test_version, @error_option, $version_range);
 my ($list_cache, @remove_cache, @local_mirror, $build_upstream_lock, $use_upstream_lock);
-my ($build_json_lock, %prefer_tarball);
+my ($build_json_lock, %prefer_tarball, $distribution);
 my $verbose = 1;
 my @options = (
     'c|commit=s'           => \$commit,
@@ -74,7 +74,8 @@ my @options = (
     'build-upstream-lock'  => \$build_upstream_lock,
     'use-upstream-lock'    => \$use_upstream_lock,
     'build-json-lock=s'    => \$build_json_lock,
-    'prefer-tarball-for=s' => sub { $prefer_tarball{lc $_[1]} = undef },
+    'prefer-tarball-for=s' => \&save_prefer_tarball,
+    'distribution=s'       => \$distribution,
     '<>'                   => \&add_name,
 );
 Getopt::Long::Configure(qw(bundling));
@@ -265,7 +266,7 @@ for my $np (@names) {
 	{
 	    $query and $nfobj->info(\*STDOUT);
 	    defined $build_upstream_lock and $nfobj->build_upstream_lock;
-	    defined $build_json_lock and $nfobj->build_json_lock($nlfh, \%prefer_tarball);
+	    defined $build_json_lock and $nfobj->build_json_lock($nlfh, \%prefer_tarball, $distribution);
 	    if ($version_range) {
 		my ($min, $max);
 		if ($version_range =~ /^([^:]*):([^:]*)$/) {
@@ -444,5 +445,12 @@ sub find_version {
 	return ($^X, "-I$dir/lib", "$dir/bin/not-fork");
     }
     die "Cannot find not-forking configuration\n";
+}
+
+sub save_prefer_tarball {
+    my ($option, $what) = @_;
+    my $value;
+    $what =~ s/:(.*)$// and $value = $1;
+    $prefer_tarball{lc $what} = $value;
 }
 

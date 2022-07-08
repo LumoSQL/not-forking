@@ -286,17 +286,20 @@ sub build_upstream_lock {
 }
 
 sub build_json_lock {
-    @_ == 3 or croak "Usage: NOTFORK->build_json_lock(FILEHANDLE, PREFER)";
-    my ($obj, $fh, $prefer) = @_;
+    @_ == 3 || @_ == 4
+	or croak "Usage: NOTFORK->build_json_lock(FILEHANDLE, PREFER [,DIST_DIR])";
+    my ($obj, $fh, $prefer, $distribution) = @_;
     exists $obj->{all_versions} or croak "Need to call get() before build_json_lock()";
     my $name = $obj->{name};
     my @versions = @{$obj->{all_versions}};
+    defined $distribution
+	and make_path($distribution, { verbose => ($obj->{verbose} && $obj->{verbose} > 2) });
     for my $block (@{$obj->{blocks}}) {
 	my @leftover;
 	for my $version (@versions) {
 	    my @data = $block->{vcs}->version_info($version);
 	    if (@data) {
-		$block->{vcs}->json_lock($fh, $name, $prefer, $version, @data);
+		$block->{vcs}->json_lock($fh, $name, $prefer, $distribution, $version, @data);
 	    } else {
 		push @leftover, $version;
 	    }

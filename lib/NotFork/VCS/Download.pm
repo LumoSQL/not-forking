@@ -410,8 +410,8 @@ sub version_map {
 }
 
 sub json_lock {
-    @_ == 9 or croak "Usage: DOWNLOAD->json_lock(FILEHANDLE, NAME, PREFER, VERSION, DATA)";
-    my ($obj, $fh, $name, $prefer, $version, $commit, $timestamp, $vcs, $url) = @_;
+    @_ == 10 or croak "Usage: DOWNLOAD->json_lock(FILEHANDLE, NAME, PREFER, DIST_DIR, VERSION, DATA)";
+    my ($obj, $fh, $name, $prefer, $distribution, $version, $commit, $timestamp, $vcs, $url) = @_;
     exists $obj->{digests}{$version}{sha}{256} or die "No SHA-256 digest for $version\n";
     $obj->_json_tarball_lock($fh, $name, $version, $url, $obj->{digests}{$version}{sha}{256});
 }

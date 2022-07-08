@@ -291,8 +291,8 @@ sub version_map {
 }
 
 sub json_lock {
-    @_ == 9 or croak "Usage: FOSSIL->json_lock(FILEHANDLE, NAME, PREFER, VERSION, DATA)";
-    my ($obj, $fh, $name, $prefer, $version, $commit, $timestamp, $vcs, $url) = @_;
+    @_ == 10 or croak "Usage: FOSSIL->json_lock(FILEHANDLE, NAME, PREFER, DIST_DIR, VERSION, DATA)";
+    my ($obj, $fh, $name, $prefer, $distribution, $version, $commit, $timestamp, $vcs, $url) = @_;
     if (exists $prefer->{fossil}) {
 	my $cache = $obj->{checksum_cache};
 	-d $cache or mkdir $cache;
@@ -308,7 +308,7 @@ sub json_lock {
 		$csum =~ /^[[:xdigit:]]{64}$/ and $sum = $csum;
 	    }
 	}
-	if (! defined $sum) {
+	if (! defined $sum || defined $distribution) {
 	    eval 'use Digest::SHA';
 	    $@ and die "Please install the Digest::SHA module to generate checksums\n";
 	    eval 'use File::Temp';
@@ -317,18 +317,31 @@ sub json_lock {
 	    $obj->_process_pending;
 	    exists $obj->{fossil} or croak "Need to call FOSSIL->get before json_lock";
 	    my $fossil = $obj->{fossil};
-	    my ($tmpfh, $tmpfile) = File::Temp::tempfile(CLEANUP => 1);
-	    _fossil_quiet($fossil, 'tarball', $commit, $tmpfile, '--name', "$name-$commit");
+	    my ($tmpfh, $tmpfile, $do_it);
+	    if (defined $distribution) {
+		$tmpfile = "$distribution/$name-$commit.tar.gz";
+		$do_it = ! -f $tmpfile;
+	    } else {
+		($tmpfh, $tmpfile) = File::Temp::tempfile(CLEANUP => 1);
+		$do_it = 1;
+	    }
+	    $do_it and _fossil_quiet($fossil, 'tarball', $commit, $tmpfile, '--name', "$name-$commit");
 	    $sha->addfile($tmpfile);
-	    unlink($tmpfile);
+	    defined $distribution or unlink($tmpfile);
 	    $sum = $sha->hexdigest;
 	    if (open(my $ch, '>', $cache)) {
 		print $ch "$sum\n";
 		close $ch;
 	    }
 	}
-	my $path = "/tarball/$commit/$name-$commit.tar.gz";
-	$obj->_json_tarball_lock($fh, $name, $version, "$url$path", $sum);
+	my $path = $prefer->{fossil};
+	if (defined $path) {
+	    $path =~ s(\$([CD\$N])){ { C => $commit, N => $name, D => '$', '$' => '$' }->{$1} }ge
+		or $path .= "/$name-$commit.tar.gz";
+	} else {
+	    $path = "$url/tarball/$commit/$name-$commit.tar.gz";
+	}
+	$obj->_json_tarball_lock($fh, $name, $version, $path, $sum);
     } else {
 	print $fh <<EOF or die "$!\n";
   "$name-$version": {

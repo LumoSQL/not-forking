@@ -618,11 +618,14 @@ project only needs `git`
 be provided as the cache hash (first column of the output of
 `--list-cache`) or as the URL (second column of the output of
 `--list-cache`)
-- `--local-mirror=DIR` specifies a directory to search for downloads; this
-currently only affects the `download` method (see below) but is specified
-as an option as it's dependent to the local system, not the configuration
-requesting the download; a file with the same base name as the requested
-download in `DIR` will be used if it exists and matches the expected checksum.
+- `--local-mirror=SPEC` specifies where to search for downloads; this
+will be used directly by the `download` method, but also avoids access to
+a VCS if the `SPEC` is formed correctly: it can contain `$C` to stand
+for the commit ID, `$V` to stand for the version number, and `$$` to
+stand for a simple dollar sign; if the result is an existing file it
+will be unpacked (as done by the `download` method) instead of requesting
+the sources from the VCS; if it is a directory, it will be considered
+as already unpacked and used directly.
 The option can be repeated to search more than one directory.
 - `--use-upstream-lock` and `--build-upstream-lock` are options to
 "lock" the correspondence between a version and a commit ID in the
@@ -636,6 +639,18 @@ specifying the vcs and commit ID or the download URL and checksum.
 prefer a tarball download over a VCS access for a repository of type
 `WHAT`, currently this is implemented only for `fossil` (and is a no-op
 for `download`).
+- `--prefer-tarball-for=WHAT:URL` same as `--prefer-tarball-for=WHAT`
+but also recording a different URL to be used in the lock files;
+the default is to produce a URL based on the repository URL and
+which would allow downloading the tarball from there.
+- `--distribution=DIR` specifies a directory in which tarballs generated
+by `--prefer-tarball-for` will be stored; without this option, these
+tarballs are generated in memory or a temporary file, and deleted once
+the checksums have been calculated; with this option, these tarballs
+are kept, and if they are found already in the directory they are
+not regenerated. It is also possible to serve (a copy of) the directory
+to distribute the tarballs, or use it as `--local-mirror` in a later
+run.
 
 If neither VERSION nor COMMIT\_ID is specified, the default is the latest
 available version, if it can be determined, or else an error message.

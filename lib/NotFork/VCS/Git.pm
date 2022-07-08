@@ -312,8 +312,8 @@ sub version_map {
 }
 
 sub json_lock {
-    @_ == 9 or croak "Usage: GIT->json_lock(FILEHANDLE, NAME, PREFER, VERSION, DATA)";
-    my ($obj, $fh, $name, $prefer, $version, $commit, $timestamp, $vcs, $url) = @_;
+    @_ == 10 or croak "Usage: GIT->json_lock(FILEHANDLE, NAME, PREFER, DIST_DIR, VERSION, DATA)";
+    my ($obj, $fh, $name, $prefer, $distribution, $version, $commit, $timestamp, $vcs, $url) = @_;
     # XXX prefer tarball not available
     print $fh <<EOF or die "$!\n";
   "$name-$version": {
