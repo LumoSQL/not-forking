@@ -101,7 +101,6 @@ sub apply {
 	local $/ = undef;
 	for my $fp (@files) {
 	    my ($name, $path) = @$fp;
-print "<$name> <$path> <$copy/$name>\n";
 	    open(my $fh, '+<', "$copy/$name") or die "$name: $!\n";
 	    my $data = <$fh>;
 	    $data =~ s/$text_regex/$replacement/g;
