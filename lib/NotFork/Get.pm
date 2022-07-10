@@ -1051,6 +1051,8 @@ sub install {
 	my $vcs = $vcsobj->source_dir($block->{vcsbase});
 	my $subtree = $block->{kw}{subtree};
 	my $sp = defined $subtree ? "$subtree/" : '';
+	my $pf = $vcsobj->prefix;
+	$pf = defined $pf ? "$pf/" : '';
 	for my $mobj (@{$obj->{mod}}) {
 	    $mobj->apply($vcs, $vcsobj, $subtree, sub { # replace callback
 		my ($path, $newdata) = @_;
@@ -1061,7 +1063,8 @@ sub install {
 			# make a copy of this file before editing
 			$path =~ m!(.*)/[^/]+$!
 			    and make_path("$cd/$1", { verbose => 0, mode => 0700 });
-			cp("$vcs/$sp$path", "$cd/$path");
+			cp("$vcs/$pf$sp$path", "$cd/$path")
+			    or die "cp($vcs/$pf$sp$path, $cd/$path): $!\n";
 			$cached{$path} = 1;
 		    }
 		}

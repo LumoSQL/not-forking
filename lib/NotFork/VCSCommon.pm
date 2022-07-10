@@ -100,14 +100,24 @@ sub cache_index {
 sub _list_files {
     @_ == 6 or croak "Usage: VCS->_list_files(FILEHANDLE, DIR, PREFIX, SUBTREE, CALLBACK)";
     my ($obj, $fh, $dir, $prefix, $subtree, $call) = @_;
+    my $prefix_found = undef;
     my $sl = defined $subtree ? length $subtree : 0;
 FILE:
     while (defined (my $rl = <$fh>)) {
 	chomp $rl;
 	my $sf = $rl;
-	my $p = $prefix;
-	while ($p-- > 0) {
-	    $sf =~ s:^.*?/:: or next FILE;
+	if ($prefix > 0) {
+	    my $pf = '';
+	    my $pc = $prefix;
+	    while ($pc-- > 0) {
+		$sf =~ s:^(.*?)/:: or next FILE;
+		$pf .= "/$1";
+	    }
+	    if (defined $prefix_found) {
+		$prefix_found eq $pf or die "Inconsistent file prefix: $prefix_found -- $pf\n";
+	    } else {
+		$prefix_found = $pf;
+	    }
 	}
 	if (defined $subtree) {
 	    substr($sf, 0, $sl) ne $subtree and next;
@@ -116,7 +126,14 @@ FILE:
 	}
 	$call->($sf, "$dir/$rl");
     }
+    $obj->{prefix_found} = $prefix_found;
     $obj;
+}
+
+sub prefix {
+    @_ == 1 or croak "Usage: VCS->prefix";
+    my ($obj) = @_;
+    $obj->{prefix_found};
 }
 
 # regular expression to determine if something is a likely version number,

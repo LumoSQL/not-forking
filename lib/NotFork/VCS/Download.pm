@@ -57,8 +57,8 @@ sub new {
 
 # creates a special object which can only be used to unpack sources for
 # a single version, or else to use already-unpacked sources for a single
-# version; it is meant to be used by other VCSs when they find a local
-# mirror
+# version; it is meant to be used instead of the "proper" VCS when the
+# sources are provided in a local mirror
 sub mirror_new {
     @_ == 5 or croak "Usage: mirror_new NotFork::VCS::Download(NAME, VERSION, SRC, IS_DIR?)";
     my ($class, $name, $version, $src, $isdir) = @_;
