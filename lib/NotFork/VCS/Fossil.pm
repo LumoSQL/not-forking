@@ -224,7 +224,8 @@ sub version_info {
 sub version {
     @_ == 1 || @_ == 2 or croak "Usage: FOSSIL->version [(APPROXIMATE?)]";
     my ($obj, $approx) = @_;
-    if (exists $obj->{version_map} && (exists $obj->{this_version} || exists $obj->{pending_version})) {
+    exists $obj->{version_map} || exists $obj->{fossil} or croak "Need to call FOSSIL->get before version";
+    if (exists $obj->{this_version} || exists $obj->{pending_version}) {
 	my $version;
 	if (exists $obj->{pending_version}) {
 	    my $vv;
@@ -236,7 +237,6 @@ sub version {
 	my ($commit_id, $timestamp) = $obj->version_info($version);
 	return ($version, $commit_id, $timestamp);
     }
-    exists $obj->{fossil} or croak "Need to call FOSSIL->get before version";
     my $fossil = $obj->{fossil};
     # get a checkout ID and maybe a tag from "fossil status"
     my ($version, $commit_id, $timestamp);

@@ -253,7 +253,7 @@ sub version {
 	my ($fh, $c) = $git->command_output_pipe('show-ref', '--dereference');
 	my ($versions, $commits) = $obj->_all_versions($fh, "$oid\\s+refs/tags/", '', qr/^(\S+)\b/);
 	$git->command_close_pipe($fh, $c);
-	my $version = shift @$versions;
+	$version = exists $obj->{this_version} ? $obj->{this_version} : shift @$versions;
 	defined $version and $version =~ s/\^.*$//;
 	wantarray or return $version;
 	$commit_id = $commits->{$version};
