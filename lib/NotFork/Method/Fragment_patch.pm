@@ -162,9 +162,20 @@ sub apply {
 	$obj->_run_patch($dir, "$dir/patch", $pf, 0, 0, 'patch');
 	close $pf;
 	# check if anything failed
-	stat "$dir/fragment.rej"
-	    and die "patch failed on $name, "
-		  . (defined $pattern ? "fragment \"$value\"" : "initial fragment") . "\n";
+	if (stat "$dir/fragment.rej") {
+	    # if possible copy the fragment.rej file to /tmp so they can inspect it
+	    my $rej;
+	    eval {
+		require File::Copy;
+		my $new = "/tmp/fragment.$$.rej";
+		File::Copy::copy("$dir/fragment.rej", $new);
+		$rej = $new;
+	    };
+	    die "patch failed on $name, "
+	      . (defined $pattern ? "fragment \"$value\"" : "initial fragment")
+	      . (defined $rej ? " see reject in $rej" : '')
+	      . "\n";
+	}
 	# and rebuild the file
 	open my $nf, '>', "$copy/$name" or die "$copy/$name: $!\n";
 	for my $src (qw(before fragment after)) {
