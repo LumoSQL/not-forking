@@ -23,6 +23,7 @@ use NotFork::Method::Fragment_patch qw(quote);
 our $VERSION = '0.4.2';
 
 my ($version, $output, $help, $verbose, $append, @template, @extra);
+my $context = 3;
 my @options = (
     'h|?|help'             => \$help,
     'o|output=s'           => \$output,
@@ -32,6 +33,7 @@ my @options = (
     't|template=s'         => \&add_template,
     'b|builtin-template=s' => \&add_builtin,
     'x|extra=s'            => \@extra,
+    'c|context=i'          => \$context,
     'v|version'            => \$version,
 );
 
@@ -207,7 +209,7 @@ while (@ARGV) {
 	} else {
 	    print $temp_handle "end\n" or die "$temp_name: $!\n";
 	}
-	open(DIFF, '-|', 'diff', '-ru', "$dir/orig", "$dir/new")
+	open(DIFF, '-|', 'diff', "-rU$context", "$dir/orig", "$dir/new")
 	    or die "diff: $!\n";
 	my $minus = <DIFF>;
 	defined $minus && $minus =~ /^---\s/ or die die "diff: no --- line\n";
@@ -302,6 +304,8 @@ sub usage {
     print $fh "    Adds LINE to the initial part of the generated file, for example\n";
     print $fh "    to add a condition on version numbers etc; can be repeated to add\n";
     print $fh "    more than one line\n";
+    print $fh "-cNUM --context=NUM\n";
+    print $fh "    Provides NUM lines of context (default 3)\n";
     print $fh "-v --version\n";
     print $fh "    show the program's version\n";
     print $fh "--verbose\n";
