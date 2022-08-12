@@ -25,6 +25,7 @@ use Getopt::Long qw(GetOptions GetOptionsFromArray);
 #use FindBin;
 #use lib "$FindBin::Bin/../lib";
 
+use NotFork::Hash;
 use NotFork::Get qw(
     set_input
     set_cache
@@ -39,14 +40,24 @@ use NotFork::Get qw(
 
 our $VERSION = '0.5';
 
-my ($version, $commit, $query, $help, $noupdate, $check_version, $list_versions);
+my ($src_version, $src_commit, $query, $help, $noupdate, $check_version, $list_versions);
 my ($offline, $my_version, $check_prereq, $check_recommend, $find_version, @names);
 my ($use_version, $ignore, $test_version, @error_option, $version_range);
 my ($list_cache, @remove_cache, @local_mirror, $build_upstream_lock, $use_upstream_lock);
-my ($build_json_lock, %prefer_tarball, $distribution);
+my ($build_json_lock, $prefer_tarball, $distribution, $hash);
 my $verbose = 1;
+
+# some variables are set per source rather than globally:
+my %per_source = (
+    version        => \$src_version,
+    commit         => \$src_commit,
+    prefer_tarball => \$prefer_tarball,
+    distribution   => \$distribution,
+    hash           => \$hash,
+);
+
 my @options = (
-    'c|commit=s'           => \$commit,
+    'c|commit=s'           => \$src_commit,
     'h|?|help'             => \$help,
     'i|input=s'            => sub { set_input($_[1]) },
     'k|cache=s'            => sub { set_cache($_[1]) },
@@ -58,7 +69,7 @@ my @options = (
     'quiet'                => sub { $verbose = 0 },
     'online'               => sub { $offline = 0 },
     'offline'              => \$offline,
-    'v|version=s'          => \$version,
+    'v|version=s'          => \$src_version,
     'list-versions'        => \$list_versions,
     'metadata'             => sub { $list_versions = 2 },
     'version-range=s'      => \$version_range,
@@ -74,9 +85,11 @@ my @options = (
     'build-upstream-lock'  => \$build_upstream_lock,
     'use-upstream-lock'    => \$use_upstream_lock,
     'build-json-lock=s'    => \$build_json_lock,
-    'prefer-tarball-for=s' => \&save_prefer_tarball,
+    'prefer-tarball=s'     => \$prefer_tarball,
     'distribution=s'       => \$distribution,
-    '<>'                   => \&add_name,
+    'filehash=s'           => sub { $hash = new NotFork::Hash($_[1], 0) },
+    'dirhash=s'            => sub { $hash = new NotFork::Hash($_[1], 1) },
+    '<>'                   => sub { add_name($_[0], 1) },
 );
 Getopt::Long::Configure(qw(bundling));
 
@@ -235,7 +248,7 @@ if (@remove_cache) {
 
 if (! @names) {
     for my $name (all_names()) {
-	push @names, [$name, $version, $commit];
+	add_name($name, 0);
     }
 }
 
@@ -246,8 +259,8 @@ if (defined $build_json_lock) {
 }
 %prereq = ();
 for my $np (@names) {
-    my ($name, $version, $commit) = @$np;
-    my $nfobj = new NotFork::Get($name, $version, $commit,
+    my ($name, $data) = @$np;
+    my $nfobj = new NotFork::Get($name, $data->{version}, $data->{commit},
 				 $use_upstream_lock &&
 				 ! defined $build_upstream_lock &&
 				 ! defined $build_json_lock);
@@ -266,7 +279,8 @@ for my $np (@names) {
 	{
 	    $query and $nfobj->info(\*STDOUT);
 	    defined $build_upstream_lock and $nfobj->build_upstream_lock;
-	    defined $build_json_lock and $nfobj->build_json_lock($nlfh, \%prefer_tarball, $distribution);
+	    defined $build_json_lock
+		and $nfobj->build_json_lock($nlfh, $data);
 	    if ($version_range) {
 		my ($min, $max);
 		if ($version_range =~ /^([^:]*):([^:]*)$/) {
@@ -304,12 +318,16 @@ if ($check_prereq) {
 }
 
 sub add_name {
-    my ($name) = @_;
-    defined $version && defined $commit
+    my ($name, $clear) = @_;
+    defined $src_version && defined $src_commit
 	and usage(1, "Cannot provide both VERSION and COMMIT\n");
-    push @names, [$name, $version, $commit];
-    undef $version;
-    undef $commit;
+    my %data;
+    for my $key (keys %per_source) {
+	my $ptr = $per_source{$key};
+	$data{$key} = $$ptr;
+	$clear and undef $$ptr;
+    }
+    push @names, [$name, \%data];
 }
 
 sub usage {
@@ -366,7 +384,9 @@ sub usage {
     print $fh "    (respectively first and second column of the --list-cache output)\n";
     print $fh "\n";
     print $fh "-c/-v needs to be specified before each NAME, after a NAME has\n";
-    print $fh "been processed, these options revert to the default\n";
+    print $fh "been processed, these options revert to the default.\n";
+    print $fh "\n";
+    print $fh "See also the documentation for other options and special cases.\n";
     exit $code;
 }
 
@@ -445,12 +465,5 @@ sub find_version {
 	return ($^X, "-I$dir/lib", "$dir/bin/not-fork");
     }
     die "Cannot find not-forking configuration\n";
-}
-
-sub save_prefer_tarball {
-    my ($option, $what) = @_;
-    my $value;
-    $what =~ s/:(.*)$// and $value = $1;
-    $prefer_tarball{lc $what} = $value;
 }
 

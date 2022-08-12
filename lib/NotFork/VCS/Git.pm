@@ -312,9 +312,11 @@ sub version_map {
 }
 
 sub json_lock {
-    @_ == 10 or croak "Usage: GIT->json_lock(FILEHANDLE, NAME, PREFER, DIST_DIR, VERSION, DATA)";
-    my ($obj, $fh, $name, $prefer, $distribution, $version, $commit, $timestamp, $vcs, $url) = @_;
-    # XXX prefer tarball not available
+    @_ == 9 or croak "Usage: GIT->json_lock(FILEHANDLE, NAME, DATA, VERSION, DATA)";
+    my ($obj, $fh, $name, $data, $version, $commit, $timestamp, $vcs, $url) = @_;
+    # XXX $data->{prefer_tarball} is currently not implemented
+    # XXX $data->{distribution} is ignored - we are not generating tarballs
+    # XXX $data->{hash} is ignored - we are not generating tarballs
     print $fh <<EOF or die "$!\n";
   "$name-$version": {
     "locked": {

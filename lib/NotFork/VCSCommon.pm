@@ -185,16 +185,17 @@ sub _version_grep {
 }
 
 sub _json_tarball_lock {
-    my ($obj, $fh, $name, $version, $url, $sum) = @_;
-    print $fh <<EOF or die "$!\n";
-  "$name-$version": {
-    "locked": {
-      "sha256": "$sum",
-      "type": "tarball",
-      "url": "$url"
+    my ($obj, $fh, $name, $version, $url, $element, $sum) = @_;
+    my $el = '';
+    print $fh "\"$name-$version\": {\n" or die "$!\n";
+    print $fh "    \"locked\": {\n" or die "$!\n";
+    if (defined $element && defined $sum) {
+	print $fh "        \"$element\": \"$sum\",\n" or die "$!\n";
     }
-  },
-EOF
+    print $fh "        \"type\": \"tarball\",\n" or die "$!\n";
+    print $fh "        \"url\": \"$url\"\n" or die "$!\n";
+    print $fh "    }\n" or die "$!\n";
+    print $fh "},\n" or die "$!\n";
 }
 
 1

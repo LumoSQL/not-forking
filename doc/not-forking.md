@@ -635,22 +635,36 @@ this will need to be added in a separate section.
 - `--build-json-lock=FILE` creates a list (in json format) of all known
 version numbers and includes information on how to obtain these, by
 specifying the vcs and commit ID or the download URL and checksum.
-- `--prefer-tarball-for=WHAT` instructs ``--build-json-lock` to
-prefer a tarball download over a VCS access for a repository of type
-`WHAT`, currently this is implemented only for `fossil` (and is a no-op
-for `download`).
-- `--prefer-tarball-for=WHAT:URL` same as `--prefer-tarball-for=WHAT`
-but also recording a different URL to be used in the lock files;
-the default is to produce a URL based on the repository URL and
-which would allow downloading the tarball from there.
+- `--prefer-tarball=URL` instructs ``--build-json-lock` to prefer a tarball
+download over a VCS access for the next source listed in the command
+line (this option, like --version, resets to default after each source);
+currently, this only applies to `fossil` repositories, and is a no-op
+for `download` as that already has only tarballs; if `URL` is an
+empty string, constructs one in the "normal" way from the repository URL.
 - `--distribution=DIR` specifies a directory in which tarballs generated
-by `--prefer-tarball-for` will be stored; without this option, these
+by `--prefer-tarball` will be stored; without this option, these
 tarballs are generated in memory or a temporary file, and deleted once
 the checksums have been calculated; with this option, these tarballs
 are kept, and if they are found already in the directory they are
 not regenerated. It is also possible to serve (a copy of) the directory
 to distribute the tarballs, or use it as `--local-mirror` in a later
-run.
+run; this option applies to the next source and is cleared after each
+source.
+- `--filehash=ELEMENT:HASH` specifies that the file hash for any generated
+tarballs be stored in the json lock file as element `ELEMENT` and calculated
+as described by `HASH`: this can be either a program and optional arguments,
+which will be called as needed with one extra argument, the file to
+checksum; or `HASH` can have the form `builtin:ALGORITHM` to use a
+pre-defined algorithm (currently one of `sha224`, `sha256`, `sha384`
+or `sha512`). This option applies only to the next source, and is
+cleared after each source; default is to not generate a file hash.
+Each source can have only one hash, so if `--filehash` is specified
+for a source, `--dirhash` (described below) cannot be specified for
+that source.
+- `--dirhash=ELEMENT:HASH` works similarly to `--filehash` but unpacks
+the tarball into a temporary directory and calculates a directory hash
+for it; there are currently no predefined built-in hashes, so `HASH`
+must be a program with optional arguments.
 
 If neither VERSION nor COMMIT\_ID is specified, the default is the latest
 available version, if it can be determined, or else an error message.

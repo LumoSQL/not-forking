@@ -30,8 +30,6 @@ sub _process_pending {
 	my $verbose = $obj->{verbose};
 	my $fossil_db = $fossil;
 	$fossil_db =~ s|/[^/]*$|/db|;
-	my $checksum_cache = $fossil;
-	$checksum_cache =~ s|/[^/]*$|/checksum|;
 	my $repo_ok = 0;
 	if (-f $fossil_db && -d $fossil) {
 	    # assume we have already cloned
@@ -77,7 +75,6 @@ sub _process_pending {
 	    _fossil($fossil, 'open', $fossil_db);
 	}
 	$obj->{fossil} = $fossil;
-	$obj->{checksum_cache} = $checksum_cache;
     }
     if (exists $obj->{pending_version}) {
 	my ($vv, $version) = @{delete $obj->{pending_version}};
@@ -291,57 +288,56 @@ sub version_map {
 }
 
 sub json_lock {
-    @_ == 10 or croak "Usage: FOSSIL->json_lock(FILEHANDLE, NAME, PREFER, DIST_DIR, VERSION, DATA)";
-    my ($obj, $fh, $name, $prefer, $distribution, $version, $commit, $timestamp, $vcs, $url) = @_;
-    if (exists $prefer->{fossil}) {
-	my $cache = $obj->{checksum_cache};
-	-d $cache or mkdir $cache;
-	$cache .= '/' . substr($commit, 0, 2);
-	-d $cache or mkdir $cache;
-	$cache .= '/' . substr($commit, 2) . '-id';
-	my $sum;
-	if (open(my $ch, '<', $cache)) {
-	    my $csum = <$ch>;
-	    close $ch;
-	    if (defined $csum) {
-		chomp $csum;
-		$csum =~ /^[[:xdigit:]]{64}$/ and $sum = $csum;
+    @_ == 9 or croak "Usage: FOSSIL->json_lock(FILEHANDLE, NAME, DATA, VERSION, DATA)";
+    my ($obj, $fh, $name, $data, $version, $commit, $timestamp, $vcs, $url) = @_;
+    # $data->{prefer_tarball} is used if present and set
+    # $data->{distribution} is used if present and set
+    # $data->{hash} is used if present and set
+    my $path = $data->{prefer_tarball};
+    if (defined $path) {
+	my ($sum, $element);
+	my $hash = $data->{hash};
+	if (defined $hash) {
+	    # we need to generate the tarball to a temporary file so that
+	    # we can hash it - unless the hash is already cached
+	    $element = $hash->element;
+	    if (! exists $obj->{checksum_cache}) {
+		my $fossil =
+		    exists $obj->{pending_get} ? $obj->{pending_get}[0] : $obj->{fossil};
+		defined $fossil or croak "Need to call FOSSIL->get before json_lock";
+		my $checksum_cache = $fossil;
+		$checksum_cache =~ s|/[^/]*$|/checksum|;
+		$obj->{checksum_cache} = $checksum_cache;
+	    }
+	    my $hashdir = $obj->{checksum_cache};
+	    $sum = $hash->find_cached($hashdir, $commit);
+	    if (! defined $sum) {
+		$obj->_process_pending;
+		exists $obj->{fossil} or croak "Need to call FOSSIL->get before json_lock";
+		my $fossil = $obj->{fossil};
+		my ($tmpfh, $tmpfile, $create_it);
+		my $distribution = $data->{distribution};
+		if (defined $distribution) {
+		    $tmpfile = "$distribution/$name-$commit.tar.gz";
+		    $create_it = ! -f $tmpfile;
+		} else {
+		    eval 'use File::Temp';
+		    $@ and die "Please install the File::Temp module to generate checksums\n";
+		    ($tmpfh, $tmpfile) = File::Temp::tempfile(CLEANUP => 1);
+		    $create_it = 1;
+		}
+		$create_it and _fossil_quiet($fossil, 'tarball', $commit, $tmpfile, '--name', "$name-$commit");
+		$sum = $hash->sum_file($hashdir, $commit, $tmpfile);
+		defined $distribution or unlink($tmpfile);
 	    }
 	}
-	if (! defined $sum || defined $distribution) {
-	    eval 'use Digest::SHA';
-	    $@ and die "Please install the Digest::SHA module to generate checksums\n";
-	    eval 'use File::Temp';
-	    $@ and die "Please install the File::Temp module to generate checksums\n";
-	    my $sha = Digest::SHA->new(256);
-	    $obj->_process_pending;
-	    exists $obj->{fossil} or croak "Need to call FOSSIL->get before json_lock";
-	    my $fossil = $obj->{fossil};
-	    my ($tmpfh, $tmpfile, $do_it);
-	    if (defined $distribution) {
-		$tmpfile = "$distribution/$name-$commit.tar.gz";
-		$do_it = ! -f $tmpfile;
-	    } else {
-		($tmpfh, $tmpfile) = File::Temp::tempfile(CLEANUP => 1);
-		$do_it = 1;
-	    }
-	    $do_it and _fossil_quiet($fossil, 'tarball', $commit, $tmpfile, '--name', "$name-$commit");
-	    $sha->addfile($tmpfile);
-	    defined $distribution or unlink($tmpfile);
-	    $sum = $sha->hexdigest;
-	    if (open(my $ch, '>', $cache)) {
-		print $ch "$sum\n";
-		close $ch;
-	    }
-	}
-	my $path = $prefer->{fossil};
-	if (defined $path) {
+	if ($path ne '') {
 	    $path =~ s(\$([CD\$N])){ { C => $commit, N => $name, D => '$', '$' => '$' }->{$1} }ge
 		or $path .= "/$name-$commit.tar.gz";
 	} else {
 	    $path = "$url/tarball/$commit/$name-$commit.tar.gz";
 	}
-	$obj->_json_tarball_lock($fh, $name, $version, $path, $sum);
+	$obj->_json_tarball_lock($fh, $name, $version, $path, $element, $sum);
     } else {
 	print $fh <<EOF or die "$!\n";
   "$name-$version": {

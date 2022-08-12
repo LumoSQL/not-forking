@@ -14,6 +14,7 @@ use strict;
 use Carp;
 use NotFork::Get qw(version_convert cache_hash add_prereq add_prereq_or prereq_program prereq_module);
 use NotFork::VCSCommon;
+use NotFork::Unpack qw(unpack_archive unpack_prereq find_program);
 
 our @ISA = qw(NotFork::VCSCommon);
 
@@ -94,7 +95,7 @@ sub commit_valid {
 
 # check that we have any prerequisite software installed
 sub check_prereq {
-    @_ == 2 or croak "Usage: PATCH->check_prereq(RESULT)";
+    @_ == 2 or croak "Usage: DOWNLOAD->check_prereq(RESULT)";
     my ($obj, $result) = @_;
     # how to get the sources
     add_prereq_or($result,
@@ -105,27 +106,14 @@ sub check_prereq {
     add_prereq($result,
 	[\&prereq_module, 'Digest::SHA'],
     );
-    # how to figure out what they are
-    add_prereq($result,
-	[\&prereq_program, 'file'],
-    );
-    # how to uncompress sources
-    add_prereq($result,
-	[\&prereq_program, 'gzip'],
-	[\&prereq_program, 'bzip2'],
-	[\&prereq_program, 'cat'], # used to get the "unpack" pipe started
-	# [\&prereq_program, 'xz'],
-    );
-    # how to unpack archives
-    add_prereq($result,
-	[\&prereq_program, 'tar'],
-    );
     # we may also need to find all unpacked files (tar provides the list
     # while unpacking, but we cannot use that if somebody else has
     # provided an unpacked source in a mirror directory)
     add_prereq($result,
 	[\&prereq_module, 'File::Find'],
     );
+    # and anything we need to unpack the files
+    unpack_prereq($result);
     $obj;
 }
 
@@ -223,12 +211,12 @@ sub _process_pending {
 		my $verbose = $obj->{verbose};
 		$verbose > 1 and print "Downloading $url -> $dir\n";
 		my @cmd;
-		if (defined (my $curl = _find('curl'))) {
+		if (defined (my $curl = find_program('curl'))) {
 		    @cmd = ($curl);
 		    $verbose > 2 and push @cmd, '-v';
 		    $verbose < 1 and push @cmd, '-s';
 		    push @cmd, '-o', $dstfile, $url;
-		} elsif (defined (my $wget = _find('wget'))) {
+		} elsif (defined (my $wget = find_program('wget'))) {
 		    @cmd = ($wget);
 		    $verbose > 2 and push @cmd, '-v';
 		    $verbose < 1 and push @cmd, '-nv';
@@ -260,48 +248,9 @@ sub _process_pending {
 	    }, no_chdir => 1 }, "$dstdir/");
 	    close $idx or die "$dstidx: $!\n";
 	} else {
-	    # now determine what file type we are looking at
-	    my @extract_pipe = ();
-	    my $type = _file_type($dstfile, @extract_pipe);
-	    while ($type =~ /^(\S+)\s*compress/) {
-		my $cp = $1;
-		if ($cp eq 'gzip' || $cp eq 'bzip2' || $cp eq 'xz') {
-		    my $prog = _find($cp);
-		    defined $prog or die "Cannot find $cp to uncompress source, please install it\n";
-		    push @extract_pipe, "$prog -dc";
-		} else {
-		    die "Don't know how to uncompress \"$cp\"\n";
-		}
-		$type = _file_type($dstfile, @extract_pipe);
-	    }
-	    my @ls_pipe = @extract_pipe;
-	    if ($type =~ /\btar\b.*\barchive/i) {
-		push @ls_pipe, 'tar -tf - > "$IDXFILE"';
-		push @extract_pipe, 'tar -xf -';
-	    } else {
-		die "Don't know how to unpack \"$type\"\n";
-	    }
-	    -d $dstdir or mkdir $dstdir or die "$dstdir: $!\n";
-	    local $ENV{SRCFILE} = $dstfile;
-	    local $ENV{IDXFILE} = $dstidx;
-	    local $ENV{DSTDIR} = $dstdir;
-	    my $cat = _find('cat');
-	    defined $cat or die "Cannot find 'cat' command\n";
-	    my $pipe_start = "cd \"\$DSTDIR\"; $cat \"\$SRCFILE\"";
-	    my $extract_pipe = join(' | ', $pipe_start, @extract_pipe);
+	    # ask the Unpack module to deal with this
 	    $obj->{verbose} > 1 and print "Unpacking $obj->{name} $version...\n";
-	    if (system($extract_pipe) != 0) {
-		$? == -1 and die "Cannot unpack $dstfile: running ($extract_pipe) failed with error $!\n";
-		$? & 0x7f and die "unpack ($extract_pipe) died with signal " . ($? & 0x7f) . "\n";
-		die "unpack ($extract_pipe) exited with status " . ($? >> 8) . "\n";
-	    }
-	    my $ls_pipe = join(' | ', $pipe_start, @ls_pipe);
-	    $obj->{verbose} > 1 and print "Updating content list for $obj->{name} $version...\n";
-	    if (system($ls_pipe) != 0) {
-		$? == -1 and die "Cannot unpack $dstfile\n";
-		$? & 0x7f and die "unpack died with signal " . ($? & 0x7f) . "\n";
-		die "unpack exited with status " . ($? >> 8) . "\n";
-	    }
+	    unpack_archive($dstfile, $dstdir, $dstidx);
 	}
     }
     $obj->{vnumber} = $version;
@@ -318,18 +267,10 @@ sub source_dir {
     $obj->{vcsbase};
 }
 
-sub _find {
-    my ($prog) = @_;
-    for my $p (split(/:/, $ENV{PATH})) {
-	-f "$p/$prog" and return "$p/$prog";
-    }
-    undef;
-}
-
 sub _file_type {
     my ($file, @pipe) = @_;
     local $ENV{SRCFILE} = $file;
-    my $cat = _find('cat');
+    my $cat = find_program('cat');
     defined $cat or die "Cannot find 'cat' command\n";
     my $pipe = join(' | ', "$cat \"\$SRCFILE\"", @pipe, 'file -');
     open (my $fh, $pipe . ' |') or die "pipe: $!\n";
@@ -410,10 +351,34 @@ sub version_map {
 }
 
 sub json_lock {
-    @_ == 10 or croak "Usage: DOWNLOAD->json_lock(FILEHANDLE, NAME, PREFER, DIST_DIR, VERSION, DATA)";
-    my ($obj, $fh, $name, $prefer, $distribution, $version, $commit, $timestamp, $vcs, $url) = @_;
-    exists $obj->{digests}{$version}{sha}{256} or die "No SHA-256 digest for $version\n";
-    $obj->_json_tarball_lock($fh, $name, $version, $url, $obj->{digests}{$version}{sha}{256});
+    @_ == 9 or croak "Usage: DOWNLOAD->json_lock(FILEHANDLE, NAME, DATA, VERSION, DATA)";
+    my ($obj, $fh, $name, $data, $version, $commit, $timestamp, $vcs, $url) = @_;
+    # $data->{prefer_tarball} is irrelevant for Download
+    # $data->{distribution} is ignored - we are not generating tarballs, only reading them
+    # $data->{hash} is used if present and set
+    my ($sum, $element);
+    my $hash = $data->{hash};
+    if (defined $hash) {
+	# XXX hash is only available if cached already, or else we have a copy of the download
+	$element = $hash->element;
+	my ($alg, $size) = $hash->identify;
+	if (! exists $obj->{digests}{$version}{$alg}{$size}) {
+	    my $dir = $obj->{dl_dir};
+	    my $url = $obj->{vurl}{$version};
+	    my $hash = cache_hash($url);
+	    my $hashdir = "$dir/$hash.hash";
+	    $sum = $hash->find_cached($hashdir, $url);
+	    if (! defined $sum) {
+		my $dstdir = "$dir/$hash.dir";
+		my $dstfile = "$dir/$hash.src";
+		# XXX see above comment, for now we require a copy of the download already present
+		-f $dstfile or die "No cached $alg-$size digest for $version and file not available\n";
+		$sum = $obj->{digests}{$version}{$alg}{$size} = $hash->sum_file($hashdir, $url, $dstfile);
+	    }
+	}
+	$sum = $obj->{digests}{$version}{$alg}{$size};
+    }
+    $obj->_json_tarball_lock($fh, $name, $version, $url, $element, $sum);
 }
 
 1
