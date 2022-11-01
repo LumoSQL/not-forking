@@ -225,6 +225,25 @@ pkg install perl5 p5-Text-Glob
 pkg install fossil perl5 git p5-Git-Wrapper curl p5-Text-Glob patch
 ```
 
+
+On NetBSD:
+
+```
+pkg_add p5-Text-Glob
+# for the complete list of recommended programs to access source repositories:
+pkg_add p5-Text-Glob patch fossil git
+```
+
+
+On OpenBSD:
+
+```
+pkg_add p5-Text-Glob
+# for the complete list of recommended programs to access source repositories:
+pkg_add p5-Text-Glob gpatch bzip2 fossil git
+```
+
+
 On minimal operating systems such as often used with [Docker](https://docker.io) there is just
 a basic Perl package present. You will need to add other modules including ExtUtils::MakeMaker,
 Digest::SHA, Perl::Git, File::Path and Perl::FindBin .
