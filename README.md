@@ -1,12 +1,12 @@
-<!-- Copyright 2020 The LumoSQL Authors, see LICENSES/CC-BY-SA-4.0 -->
+> [!CAUTION]
+> **This repo is retired on GitHub but the project is very much alive.**
+> In 2026, LumoSQL was rebooted. Find it at
+> **[lumosql.org (Fossil)](https://lumosql.org/src/not-forking)** or
+> **[codeberg.org (git)](https://codeberg.org/Not-forking/not-forking)**.
 
-<!-- SPDX-License-Identifier: CC-BY-SA-4.0 -->
-<!-- SPDX-FileCopyrightText: 2020 The LumoSQL Authors -->
-<!-- SPDX-ArtifactOfProjectName: LumoSQL -->
-<!-- SPDX-FileType: Documentation -->
-<!-- SPDX-FileComment: Original by Dan Shearer, October 2020 -->
 
-# The Not-forking Software Reproducibility Tool
+
+# Not-forking --- outdated, do not use this repo
 
 Not-forking lets you integrate non-diffable codebases, like
 patch/sed/diff/cp/mv rolled into one.  Not-forking is a standard,
