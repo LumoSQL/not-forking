@@ -1,12 +1,12 @@
 > [!CAUTION]
-> **This repo is retired on GitHub but the project is very much alive.**
-> In 2026, LumoSQL was rebooted. Find it at
-> **[lumosql.org (Fossil)](https://lumosql.org/src/not-forking)** or
-> **[codeberg.org (git)](https://codeberg.org/Not-forking/not-forking)**.
+> **This repo is retired on GitHub but this software reproducibility project is very much alive.**
+> In 2026, Not-Forking was rebooted. Find it at
+> **[LumoSQL Not-forking (Fossil)](https://lumosql.org/src/not-forking)** or
+> **[codeberg.org Not-forking (git)](https://codeberg.org/Not-forking/not-forking)**.
 
 
 
-# Not-forking --- outdated, do not use this repo
+# Not-forking reproducibility tool --- outdated, do not use this repo
 
 Not-forking lets you integrate non-diffable codebases, like
 patch/sed/diff/cp/mv rolled into one.  Not-forking is a standard,
